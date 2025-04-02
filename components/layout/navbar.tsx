@@ -61,7 +61,7 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link href="/" className="mr-auto flex items-center space-x-2">
+        <Link href="/products" className="mr-auto flex items-center space-x-2">
           <span className="font-bold sm:inline-block">商品交易平台</span>
         </Link>
 
@@ -115,11 +115,11 @@ export function Navbar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="pr-0">
-              <Link href="/" className="flex items-center mb-6 pl-4" onClick={() => setIsMobileMenuOpen(false)}>
+              <Link href="/products" className="flex items-center mb-6 pl-4" onClick={() => setIsMobileMenuOpen(false)}>
                 <span className="font-bold">商品交易平台</span>
               </Link>
               <div className="space-y-2">
-                <Link href="/" className="block px-4 py-2 text-sm hover:bg-accent" onClick={() => setIsMobileMenuOpen(false)}>首页</Link>
+                <Link href="/products" className="block px-4 py-2 text-sm hover:bg-accent" onClick={() => setIsMobileMenuOpen(false)}>首页</Link>
                 {categories.map((category) => renderCategoryMenuItem(category, true))}
                 <Link href="/products" className="block px-4 py-2 text-sm hover:bg-accent" onClick={() => setIsMobileMenuOpen(false)}>所有商品</Link>
               </div>

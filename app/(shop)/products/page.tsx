@@ -89,7 +89,7 @@ export default function ProductsPage() {
         </div>
         
         <div className="justify-self-end">
-          <Link href="/">
+          <Link href="/products">
             <Button variant="ghost" className="flex items-center gap-1">
               <ChevronLeft className="h-4 w-4" />
               返回首页

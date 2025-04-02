@@ -204,7 +204,7 @@ export default function OrdersPage() {
   return (
     <div className="container mx-auto py-10">
       <div className="mb-6">
-        <Link href="/">
+        <Link href="/products">
           <Button variant="ghost" className="flex items-center gap-1">
             <ChevronLeft className="h-4 w-4" />
             返回首页
