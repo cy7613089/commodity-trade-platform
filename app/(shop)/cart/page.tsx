@@ -26,10 +26,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatPrice, safeMultiply, safeSubtract } from "@/lib/utils/format";
+import { useRouter } from "next/navigation";
 // Import CartItem type if not already implicitly available via store
 import type { CartItem } from "@/lib/store/cart-store"; 
 
 export default function CartPage() {
+  const router = useRouter();
   // From Zustand store
   const {
     items,
@@ -275,7 +277,7 @@ export default function CartPage() {
                   className="w-full"
                   size="lg"
                   onClick={() => {
-                    alert("结算功能尚未实现");
+                    router.push("/checkout");
                   }}
                   // Disable checkout if cart is empty or has issues?
                   disabled={items.length === 0} 
