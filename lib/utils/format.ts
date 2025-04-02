@@ -3,8 +3,10 @@ import Decimal from 'decimal.js';
 /**
  * 安全地加法计算，避免Javascript浮点数精度问题
  */
-export function safeAdd(a: number, b: number): number {
-  return new Decimal(a).plus(new Decimal(b)).toNumber();
+export function safeAdd(a: number | null | undefined, b: number | null | undefined): number {
+  const numA = new Decimal(a ?? 0); // 如果 a 是 null 或 undefined，则视为 0
+  const numB = new Decimal(b ?? 0); // 如果 b 是 null 或 undefined，则视为 0
+  return numA.plus(numB).toNumber();
 }
 
 /**
@@ -17,8 +19,10 @@ export function safeSubtract(a: number, b: number): number {
 /**
  * 安全地乘法计算，避免Javascript浮点数精度问题
  */
-export function safeMultiply(a: number, b: number): number {
-  return new Decimal(a).times(new Decimal(b)).toNumber();
+export function safeMultiply(a: number | null | undefined, b: number | null | undefined): number {
+  const numA = new Decimal(a ?? 0); // 如果 a 是 null 或 undefined，则视为 0
+  const numB = new Decimal(b ?? 0); // 如果 b 是 null 或 undefined，则视为 0
+  return numA.times(numB).toNumber();
 }
 
 /**
@@ -48,7 +52,11 @@ export function calculateDiscountPercentage(originalPrice: number, discountedPri
 /**
  * 格式化金额为两位小数的字符串
  */
-export function formatPrice(price: number): string {
+export function formatPrice(price: number | null | undefined): string {
+  // 如果价格是 null, undefined 或 NaN，返回 '0.00'
+  if (price === null || price === undefined || isNaN(price)) {
+    return '0.00';
+  }
   return new Decimal(price).toFixed(2);
 }
 

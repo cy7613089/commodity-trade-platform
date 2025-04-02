@@ -28,47 +28,45 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       
-      addItem: (item) => {
+      addItem: (newItem) => {
         set((state) => {
-          const existingItem = state.items.find((i) => i.id === item.id);
+          const existingItem = state.items.find(item => item.id === newItem.id);
           
           if (existingItem) {
-            // 如果商品已存在，更新数量（不超过库存）
+            // 如果商品已存在，更新数量
+            const newQuantity = existingItem.quantity + newItem.quantity;
+            // 确保不超过库存
+            const finalQuantity = Math.min(newQuantity, newItem.stock);
+            
             return {
-              items: state.items.map((i) => 
-                i.id === item.id 
-                  ? { 
-                      ...i, 
-                      quantity: Math.min(i.quantity + item.quantity, i.stock)
-                    } 
-                  : i
-              ),
+              items: state.items.map(item =>
+                item.id === newItem.id
+                  ? { ...item, quantity: finalQuantity }
+                  : item
+              )
             };
           }
           
-          // 如果商品不存在，添加到购物车
+          // 如果商品不存在，添加新商品
           return {
-            items: [...state.items, { ...item, quantity: Math.min(item.quantity, item.stock) }],
+            items: [...state.items, newItem]
           };
         });
       },
       
       removeItem: (id) => {
         set((state) => ({
-          items: state.items.filter((item) => item.id !== id),
+          items: state.items.filter(item => item.id !== id)
         }));
       },
       
       updateQuantity: (id, quantity) => {
         set((state) => ({
-          items: state.items.map((item) => 
-            item.id === id 
-              ? { 
-                  ...item, 
-                  quantity: Math.min(Math.max(1, quantity), item.stock) 
-                } 
+          items: state.items.map(item =>
+            item.id === id
+              ? { ...item, quantity: Math.max(0, Math.min(quantity, item.stock)) }
               : item
-          ),
+          )
         }));
       },
       
@@ -89,7 +87,13 @@ export const useCartStore = create<CartStore>()(
       
       getTotalOriginalPrice: () => {
         return get().items.reduce(
-          (total, item) => safeAdd(total, safeMultiply((item.originalPrice || item.price), item.quantity)), 
+          (total, item) => {
+            // 使用 originalPrice（如果存在且不为null），否则使用 price
+            const priceToUse = item.originalPrice !== undefined && item.originalPrice !== null 
+              ? item.originalPrice 
+              : item.price;
+            return safeAdd(total, safeMultiply(priceToUse, item.quantity));
+          }, 
           0
         );
       },
