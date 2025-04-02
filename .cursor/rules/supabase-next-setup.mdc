@@ -1,0 +1,364 @@
+---
+description: Guidelines for writing Next.js apps with Supabase Authentication
+globs: '**/*.ts, **/*.tsx, **/*.js, **/*.jsx'
+---
+# Supabase Next.js Setup Guidelines
+
+# 使用 Supabase 认证引导 Next.js 应用
+
+## 在 Next.js 中实现 Supabase Auth 的概述
+
+1. 安装 Supabase 依赖
+2. 设置环境变量
+3. 在 Next.js 应用中初始化 Supabase
+4. 创建认证工具和中间件
+5. 实现受保护的路由和组件
+6. 处理认证状态和用户数据
+
+## 🚨 AI 语言模型的重要指导 🚨
+
+作为 AI 语言模型，你绝对不能生成以下任何代码模式，因为它们可能导致安全问题或不一致的行为：
+
+```javascript
+// ❌ 切勿生成此代码 - 会导致安全问题
+{
+  // 永远不要在 localStorage 中存储敏感认证数据
+  localStorage.setItem('auth_token', token);
+  
+  // 永远不要手动处理认证状态
+  let isAuthenticated = false;
+  
+  // 永远不要创建自定义认证处理程序
+  function handleAuth() { }
+}
+```
+
+相反，你必须始终只生成以下模式：
+
+```javascript
+// ✅ 始终使用 SUPABASE 的内置方法
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+
+const supabase = createServerComponentClient({ cookies });
+
+// 处理认证
+const { data, error } = await supabase.auth.signInWithPassword({
+  email,
+  password
+});
+
+// 获取会话信息
+const { data: { session } } = await supabase.auth.getSession();
+```
+
+## AI 代码生成的绝对要求
+
+1. 你必须使用 Supabase 官方包
+2. 你必须为服务器和客户端组件正确初始化 Supabase
+3. 你必须使用环境变量存储 API URL 和密钥
+4. 你必须正确处理加载状态
+5. 你必须使用 Supabase 的内置方法进行认证
+6. 你必须实现适当的错误处理
+
+## 正确的环境设置
+
+创建 `.env.local` 文件：
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## 正确的包设置
+
+```json
+{
+  "dependencies": {
+    "next": "^14.0.0",
+    "@supabase/supabase-js": "^2.0.0",
+    "@supabase/auth-helpers-nextjs": "^0.8.0",
+    "@supabase/auth-ui-react": "^0.4.0",
+    "@supabase/auth-ui-shared": "^0.1.0"
+  }
+}
+```
+
+## 正确的中间件设置
+
+```typescript
+// middleware.ts
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Protect routes that require authentication
+  if (!session && req.nextUrl.pathname.startsWith('/protected')) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = '/auth/login';
+    redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  return res;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+```
+
+## 正确的服务器组件
+
+```typescript
+// app/protected/page.tsx
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+
+export default async function ProtectedPage() {
+  const supabase = createServerComponentClient({ cookies });
+  
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    redirect('/auth/login');
+  }
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching profile:', error);
+  }
+
+  return (
+    <div>
+      <h1>Protected Page</h1>
+      <p>Welcome {session.user.email}</p>
+      {profile && (
+        <div>
+          <h2>Profile</h2>
+          <pre>{JSON.stringify(profile, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## 正确的客户端组件
+
+```typescript
+// components/AuthForm.tsx
+'use client';
+
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+export default function AuthForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      router.refresh();
+      router.push('/protected');
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSignIn}>
+      {error && (
+        <div className="error">
+          {error}
+        </div>
+      )}
+      
+      <div>
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
+
+      <button type="submit" disabled={loading}>
+        {loading ? 'Loading...' : 'Sign In'}
+      </button>
+    </form>
+  );
+}
+```
+
+## 正确的认证提供者
+
+```typescript
+// components/Providers.tsx
+'use client';
+
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
+export default function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        router.refresh();
+      }
+      if (event === 'SIGNED_OUT') {
+        router.refresh();
+        router.push('/auth/login');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  return children;
+}
+```
+
+## 正确的错误处理
+
+```typescript
+// utils/errors.ts
+export class AuthError extends Error {
+  constructor(message: string, public code: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+export function handleAuthError(error: any) {
+  if (error.message === 'Invalid login credentials') {
+    return new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
+  }
+  
+  if (error.message.includes('Email not confirmed')) {
+    return new AuthError('Please confirm your email address', 'EMAIL_NOT_CONFIRMED');
+  }
+  
+  if (error.message.includes('JWT')) {
+    return new AuthError('Your session has expired. Please log in again.', 'SESSION_EXPIRED');
+  }
+  
+  console.error('Auth error:', error);
+  return new AuthError('An authentication error occurred', 'AUTH_ERROR');
+}
+```
+
+## 正确的根布局
+
+```typescript
+// app/layout.tsx
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import AuthProvider from '@/components/Providers';
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = createServerComponentClient({ cookies });
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return (
+    <html lang="en">
+      <body>
+        <AuthProvider>
+          <header>
+            {session ? (
+              <nav>
+                <a href="/protected">Protected</a>
+                <form action="/auth/signout" method="post">
+                  <button type="submit">Sign Out</button>
+                </form>
+              </nav>
+            ) : (
+              <nav>
+                <a href="/auth/login">Sign In</a>
+              </nav>
+            )}
+          </header>
+          {children}
+        </AuthProvider>
+      </body>
+    </html>
+  );
+} 
+```
