@@ -609,9 +609,21 @@ Server Actions:
 │   │   │       └── [slug]
 │   │   │           └── page.tsx
 │   │   ├── cart             # 购物车页面
+│   │   │   └── page.tsx
 │   │   ├── checkout         # 结算页面
+│   │   │   ├── page.tsx
+│   │   │   └── payment      # 支付页面
+│   │   │       └── page.tsx
 │   │   ├── orders           # 订单管理页面
+│   │   │   ├── [id]
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
 │   │   ├── account          # 用户账户页面
+│   │   │   ├── addresses
+│   │   │   │   └── page.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── security
+│   │   │       └── page.tsx
 │   │   └── layout.tsx       # 商城页面共用布局(改造现有layout.tsx)
 │   ├── admin                 # 管理后台路由
 │   │   ├── page.tsx         # 管理后台首页
@@ -632,7 +644,10 @@ Server Actions:
 │   │   └── payment          # 支付相关API(mock)
 │   ├── favicon.ico
 │   ├── globals.css           # 全局样式
-│   └── layout.tsx            # 根布局(已存在)
+│   ├── layout.tsx            # 根布局(已存在)
+│   ├── page.tsx              # 根页面
+│   └── profile               # 个人资料页面
+│       └── page.tsx
 ├── components                # 组件目录
 │   ├── ui                    # 已有的UI组件库
 │   │   ├── alert.tsx
@@ -649,6 +664,7 @@ Server Actions:
 │   │   ├── form.tsx
 │   │   ├── input.tsx
 │   │   ├── label.tsx
+│   │   ├── navigation-menu.tsx
 │   │   ├── pagination.tsx
 │   │   ├── popover.tsx
 │   │   ├── radio-group.tsx
@@ -657,12 +673,15 @@ Server Actions:
 │   │   ├── separator.tsx
 │   │   ├── sheet.tsx
 │   │   ├── skeleton.tsx
+│   │   ├── slider.tsx
 │   │   ├── sonner.tsx
 │   │   ├── switch.tsx
 │   │   ├── table.tsx
 │   │   ├── tabs.tsx
 │   │   ├── textarea.tsx
-│   │   └── tooltip.tsx
+│   │   ├── toast.tsx
+│   │   ├── tooltip.tsx
+│   │   └── use-toast.ts
 │   ├── layout               # 布局组件
 │   │   ├── header.tsx       # 页头
 │   │   ├── footer.tsx       # 页脚
@@ -671,15 +690,24 @@ Server Actions:
 │   │   └── admin-nav.tsx    # 管理后台导航
 │   ├── products             # 商品相关组件
 │   │   ├── product-card.tsx # 商品卡片
+│   │   ├── product-details.tsx # 商品详情组件
 │   │   ├── product-grid.tsx # 商品网格
-│   │   └── product-filter.tsx # 商品筛选
+│   │   ├── product-filter.tsx # 商品筛选
+│   │   └── product-pagination.tsx # 商品分页
 │   ├── cart                 # 购物车相关组件
 │   │   ├── cart-item.tsx    # 购物车项目
 │   │   └── coupon-selector.tsx # 优惠券选择器
 │   ├── checkout             # 结算相关组件
+│   │   ├── address-selector.tsx # 地址选择器
+│   │   ├── coupon-selector.tsx # 优惠券选择器
+│   │   └── payment-method.tsx # 支付方式选择器
 │   ├── search               # 搜索相关组件
 │   │   ├── search-bar.tsx   # 搜索框组件
+│   │   ├── search-box.tsx   # 搜索框组件
 │   │   └── filter-panel.tsx # 高级筛选面板
+│   ├── theme                # 主题相关组件
+│   │   ├── theme-mode-toggle.tsx # 主题模式切换
+│   │   └── theme-provider.tsx # 主题提供者
 │   ├── providers            # 全局上下文提供者
 │   │   ├── theme-provider.tsx
 │   │   └── session-provider.tsx
@@ -696,7 +724,13 @@ Server Actions:
 │   │   ├── format.ts         # 格式化工具(价格、日期等)
 │   │   ├── validation.ts     # 表单验证工具
 │   │   └── storage.ts        # 本地存储工具
-│   ├── hooks.ts              # 自定义Hook
+│   ├── hooks                 # 自定义Hook目录
+│   │   ├── hooks.ts          # 自定义Hook
+│   │   └── use-debounce.ts   # 防抖钩子
+│   ├── data                  # 数据目录
+│   │   └── categories.ts     # 分类数据
+│   ├── services              # 服务目录
+│   │   └── search.ts         # 搜索服务
 │   ├── db.ts                 # Supabase客户端配置
 │   ├── supabase              # Supabase相关配置
 │   │   ├── schema.ts         # 数据库schema定义
@@ -705,6 +739,8 @@ Server Actions:
 │   ├── coupon-rules.ts       # 优惠券规则处理
 │   ├── store                 # 状态管理
 │   │   ├── cart-store.ts     # 购物车状态
+│   │   ├── order-store.ts    # 订单状态
+│   │   ├── user-store.ts     # 用户状态
 │   │   └── filter-store.ts   # 筛选条件状态
 │   └── actions               # Server Actions集合 
 │       ├── product-actions.ts
