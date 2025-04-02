@@ -284,11 +284,21 @@
 ├── app                       # Next.js App Router目录
 │   ├── (auth)                # 身份验证相关路由
 │   │   ├── login            
+│   │   │   └── page.tsx     # 登录页
 │   │   ├── register         
+│   │   │   └── page.tsx     # 注册页
+│   │   ├── reset-password   # 密码重置
+│   │   │   └── page.tsx
 │   │   └── layout.tsx       # 认证页面共用布局
 │   ├── (shop)                # 客户端商城路由
 │   │   ├── page.tsx         # 商城首页(使用现有page.tsx)
 │   │   ├── products         # 商品相关页面
+│   │   │   ├── page.tsx     # 商品列表页
+│   │   │   ├── [id]         # 商品详情页路由 
+│   │   │   │   └── page.tsx # 商品详情页
+│   │   │   └── categories   # 分类浏览页
+│   │   │       └── [slug]
+│   │   │           └── page.tsx
 │   │   ├── cart             # 购物车页面
 │   │   ├── checkout         # 结算页面
 │   │   ├── orders           # 订单管理页面
@@ -303,6 +313,11 @@
 │   ├── api                   # API路由
 │   │   ├── auth             # 认证相关API
 │   │   ├── products         # 商品相关API
+│   │   │   ├── route.ts     # 商品列表API
+│   │   │   ├── [id]
+│   │   │   │   └── route.ts # 单个商品API
+│   │   │   └── search
+│   │   │       └── route.ts # 商品搜索API
 │   │   ├── orders           # 订单相关API
 │   │   ├── coupons          # 优惠券相关API
 │   │   └── payment          # 支付相关API(mock)
@@ -352,18 +367,47 @@
 │   ├── cart                 # 购物车相关组件
 │   │   ├── cart-item.tsx    # 购物车项目
 │   │   └── coupon-selector.tsx # 优惠券选择器
-│   └── checkout             # 结算相关组件
+│   ├── checkout             # 结算相关组件
+│   ├── search               # 搜索相关组件
+│   │   ├── search-bar.tsx   # 搜索框组件
+│   │   └── filter-panel.tsx # 高级筛选面板
+│   ├── providers            # 全局上下文提供者
+│   │   ├── theme-provider.tsx
+│   │   └── session-provider.tsx
+│   └── common               # 通用组件
+│       ├── rating.tsx       # 评分组件
+│       ├── price.tsx        # 价格显示组件(含折扣)
+│       └── image-gallery.tsx # 图片画廊
 ├── components.json
 ├── eslint.config.mjs
 ├── instruction.md
 ├── lib                       # 工具库
 │   ├── utils.ts              # 已有的工具函数
+│   ├── utils                 # 工具函数目录
+│   │   ├── format.ts         # 格式化工具(价格、日期等)
+│   │   ├── validation.ts     # 表单验证工具
+│   │   └── storage.ts        # 本地存储工具
 │   ├── hooks.ts              # 自定义Hook
 │   ├── db.ts                 # Supabase客户端配置
+│   ├── supabase              # Supabase相关配置
+│   │   ├── schema.ts         # 数据库schema定义
+│   │   └── migrations        # 数据库迁移文件
 │   ├── auth.ts               # 认证相关工具
-│   └── coupon-rules.ts       # 优惠券规则处理
+│   ├── coupon-rules.ts       # 优惠券规则处理
+│   ├── store                 # 状态管理
+│   │   ├── cart-store.ts     # 购物车状态
+│   │   └── filter-store.ts   # 筛选条件状态
+│   └── actions               # Server Actions集合 
+│       ├── product-actions.ts
+│       ├── order-actions.ts
+│       └── coupon-actions.ts
+├── middleware.ts             # 路由权限控制
 ├── types                     # 类型定义目录
 │   └── index.ts              # 类型定义文件
+├── __tests__                 # 测试文件目录
+│   ├── components            # 组件测试
+│   └── api                   # API测试
+├── .env.example              # 环境变量示例
 ├── next-env.d.ts
 ├── next.config.ts
 ├── package-lock.json
@@ -373,7 +417,7 @@
 │   ├── file.svg
 │   ├── globe.svg
 │   ├── next.svg
-│   ├── products             # 商品图片目录(新建)
+│   ├── products              # 商品图片目录(新建)
 │   ├── vercel.svg
 │   └── window.svg
 └── tsconfig.json
