@@ -157,10 +157,13 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - slug: text UNIQUE NOT NULL (URL友好的商品标识)
 - description: text (商品描述)
 - price: decimal(10,2) NOT NULL (商品价格)
+- originalPrice: decimal(10,2) (原价，用于显示折扣)
 - stock: integer NOT NULL (库存数量)
 - category_id: uuid REFERENCES categories(id) (商品分类ID)
 - images: jsonb (商品图片路径数组 ['url1', 'url2', ...])
 - specs: jsonb (商品规格参数，JSON格式)
+- rating: numeric(2,1) DEFAULT 0 (商品评分，1-5分)
+- reviewCount: integer DEFAULT 0 (评价数量)
 - is_featured: boolean DEFAULT false (是否为推荐商品)
 - status: text DEFAULT 'active' (商品状态：active/inactive)
 - created_at: timestamptz DEFAULT now() (创建时间)
@@ -176,6 +179,7 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - description: text (分类描述)
 - parent_id: uuid REFERENCES categories(id) (父分类ID，支持多级分类)
 - image: text (分类图片路径)
+- count: integer DEFAULT 0 (分类下商品数量)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
 ```
@@ -189,6 +193,8 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - phone: text (电话号码)
 - avatar: text (头像URL)
 - role: text DEFAULT 'customer' (用户角色: customer/admin)
+- email_verified: boolean DEFAULT false (邮箱是否已验证)
+- auth_provider: text DEFAULT 'email' (认证提供商: email/google/facebook等)
 - created_at: timestamptz DEFAULT now()
 - last_login: timestamptz
 ```
@@ -204,6 +210,7 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - city: text NOT NULL (城市)
 - district: text (区县)
 - street: text NOT NULL (街道地址)
+- address: text NOT NULL (完整地址，包含省市区街道)
 - postal_code: text (邮政编码)
 - is_default: boolean DEFAULT false (是否默认地址)
 - created_at: timestamptz DEFAULT now()
@@ -219,8 +226,8 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - total_amount: decimal(10,2) NOT NULL (订单总金额)
 - discount_amount: decimal(10,2) DEFAULT 0 (优惠金额)
 - final_amount: decimal(10,2) NOT NULL (最终支付金额)
-- status: text NOT NULL (订单状态：pending/paid/shipped/delivered/cancelled)
-- payment_method: text (支付方式)
+- status: text NOT NULL (订单状态：PENDING_PAYMENT/PENDING_SHIPMENT/SHIPPED/COMPLETED/CANCELLED)
+- payment_method: text (支付方式: alipay/wechat/creditcard/cash)
 - payment_status: text DEFAULT 'unpaid' (支付状态：unpaid/paid/refunded)
 - address_id: uuid REFERENCES addresses(id) (收货地址ID)
 - shipping_fee: decimal(10,2) DEFAULT 0 (运费)
@@ -242,6 +249,7 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - product_image: text (商品图片，存储下单时的图片)
 - quantity: integer NOT NULL (购买数量)
 - price: decimal(10,2) NOT NULL (购买时商品单价)
+- original_price: decimal(10,2) (购买时商品原价，用于计算折扣)
 - subtotal: decimal(10,2) NOT NULL (小计金额)
 - discount: decimal(10,2) DEFAULT 0 (该商品优惠金额)
 - created_at: timestamptz DEFAULT now()
@@ -253,6 +261,7 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - id: uuid PRIMARY KEY
 - code: text UNIQUE NOT NULL (优惠券代码)
 - name: text NOT NULL (优惠券名称)
+- description: text (优惠券描述)
 - type: text NOT NULL (优惠券类型：product/time/amount/combination)
 - value: decimal(10,2) NOT NULL (优惠券面值)
 - discount_type: text NOT NULL (折扣类型：fixed/percentage)
@@ -262,6 +271,8 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - start_date: timestamptz NOT NULL (有效期开始)
 - end_date: timestamptz NOT NULL (有效期结束)
 - is_active: boolean DEFAULT true (是否激活)
+- color: text DEFAULT 'blue' (优惠券颜色标识: blue/green/purple/orange)
+- icon: text (优惠券图标)
 - coupon_rule: jsonb (优惠规则，JSON格式)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
@@ -310,6 +321,22 @@ Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端�
 - cart_id: uuid REFERENCES carts(id) ON DELETE CASCADE (购物车ID)
 - product_id: uuid REFERENCES products(id) (商品ID)
 - quantity: integer NOT NULL (数量)
+- selected: boolean DEFAULT true (是否选中用于结算)
+- created_at: timestamptz DEFAULT now()
+- updated_at: timestamptz DEFAULT now()
+```
+
+##### product_reviews 表（商品评价表）
+```
+商品评价表
+- id: uuid PRIMARY KEY
+- product_id: uuid REFERENCES products(id) ON DELETE CASCADE (商品ID)
+- user_id: uuid REFERENCES users(id) (用户ID)
+- order_id: uuid REFERENCES orders(id) (订单ID)
+- rating: integer NOT NULL (评分1-5)
+- content: text (评价内容)
+- images: jsonb (评价图片)
+- is_anonymous: boolean DEFAULT false (是否匿名评价)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
 ```
