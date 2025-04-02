@@ -136,16 +136,221 @@
 - 实时库存检查和更新机制
 
 ### 2.2 数据库设计
-#### 2.2.1 Supabase 概述与配置
+#### 2.2.1 Supabase安装与配置
 
-##### Supabase 简介
-Supabase 是一个开源的 Firebase 替代品，提供了一套完整的后端服务，包括托管的 PostgreSQL 数据库、认证系统、实时订阅、存储和自动生成的 API。
+##### 安装Supabase相关包
+要在Next.js项目中使用Supabase，需要安装以下npm包：
 
-##### 项目配置要点
-- **初始化配置**：使用环境变量管理 Supabase URL 和 API Key
-- **数据库连接**：通过 `lib/db.ts` 配置 Supabase 客户端
-- **认证集成**：使用 Supabase Auth 服务处理用户注册与登录
-- **存储集成**：利用 Supabase Storage 存储商品图片
+```bash
+# 安装Supabase客户端和Auth Helpers
+npm install @supabase/supabase-js @supabase/auth-helpers-nextjs --legacy-peer-deps
+
+# 如需使用Supabase Auth UI组件
+npm install @supabase/auth-ui-react @supabase/auth-ui-shared --legacy-peer-deps
+```
+
+> 注意：由于可能存在的依赖冲突，我们使用`--legacy-peer-deps`标志进行安装。
+
+##### 环境变量配置
+创建或编辑`.env.local`文件，添加以下环境变量:
+
+```
+# Supabase配置
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-url.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+> 注意：`NEXT_PUBLIC_`前缀的环境变量可在客户端和服务器端访问，而其他变量仅在服务器端可用。`SUPABASE_SERVICE_ROLE_KEY`具有管理员权限，应妥善保管。
+
+##### Supabase客户端配置
+在`lib/db.ts`文件中创建和配置Supabase客户端:
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+import { Database } from '@/types/supabase'; // 类型定义
+
+// 检查环境变量是否存在
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
+}
+
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
+}
+
+// 创建Supabase客户端 - 可在客户端和服务器端使用
+export const supabase = createClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
+// 创建带管理员权限的客户端（仅在服务器端使用）
+export function createAdminClient() {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Missing env.SUPABASE_SERVICE_ROLE_KEY');
+  }
+  
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  );
+}
+```
+
+##### 配置中间件
+在项目根目录创建`middleware.ts`文件，用于处理认证:
+
+```typescript
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+  
+  // 刷新会话以确保最新的auth状态
+  await supabase.auth.getSession();
+  
+  return res;
+}
+
+// 指定中间件应用于的路由
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.svg|api/auth).*)',
+  ],
+};
+```
+
+##### 创建Supabase上下文提供者
+创建`components/providers/supabase-provider.tsx`文件，为应用提供Supabase上下文:
+
+```tsx
+'use client';
+
+import { createContext, useContext, useEffect, useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { SupabaseClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/supabase';
+
+type SupabaseContext = {
+  supabase: SupabaseClient<Database>;
+};
+
+const Context = createContext<SupabaseContext | undefined>(undefined);
+
+export default function SupabaseProvider({
+  children
+}: {
+  children: React.ReactNode;
+}) {
+  const [supabase] = useState(() => createClientComponentClient<Database>());
+
+  useEffect(() => {
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(() => {
+      // 可以在这里处理身份验证状态变化
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  return (
+    <Context.Provider value={{ supabase }}>
+      {children}
+    </Context.Provider>
+  );
+}
+
+export const useSupabase = () => {
+  const context = useContext(Context);
+  if (context === undefined) {
+    throw new Error('useSupabase must be used inside SupabaseProvider');
+  }
+  return context;
+};
+```
+
+##### 配置根布局
+更新`app/layout.tsx`文件，添加Supabase提供者:
+
+```tsx
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { ThemeProvider } from "@/components/theme/theme-provider";
+import SupabaseProvider from "@/components/providers/supabase-provider";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SupabaseProvider>
+            {children}
+          </SupabaseProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+##### 创建认证相关帮助函数
+创建`lib/auth.ts`文件，提供认证相关的帮助函数:
+
+```typescript
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import type { Database } from '@/types/supabase';
+
+export async function getUserSession() {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
+}
+
+export async function getUser() {
+  const session = await getUserSession();
+  if (!session) return null;
+  
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+export async function isUserLoggedIn() {
+  const session = await getUserSession();
+  return !!session;
+}
+
+export async function signOut() {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  await supabase.auth.signOut();
+}
+```
 
 #### 2.2.2 详细数据表结构
 
@@ -382,6 +587,11 @@ CREATE INDEX idx_user_coupons_expired_at ON user_coupons(expired_at);
 -- 购物车项索引
 CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
 CREATE INDEX idx_cart_items_product ON cart_items(product_id);
+
+-- 商品评价表索引
+CREATE INDEX idx_product_reviews_product ON product_reviews(product_id);
+CREATE INDEX idx_product_reviews_user ON product_reviews(user_id);
+CREATE INDEX idx_product_reviews_rating ON product_reviews(rating);
 ```
 
 #### 2.2.4 数据访问策略
@@ -474,27 +684,6 @@ Server Actions:
 - 版本化的Schema定义
 - 增量迁移脚本
 - 回滚机制
-```
-
-#### 2.2.7 数据库环境配置与部署
-
-##### 环境配置
-通过 `.env` 文件管理不同环境的数据库连接：
-
-```
-环境变量:
-- NEXT_PUBLIC_SUPABASE_URL: Supabase项目URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY: 公共匿名密钥
-- SUPABASE_SERVICE_ROLE_KEY: 服务端密钥(仅服务器端使用)
-- DATABASE_URL: 直接数据库连接URL(可选)
-```
-
-##### 部署策略
-```
-部署考虑因素:
-- 开发环境使用本地Supabase实例
-- 测试环境使用独立的Supabase项目
-- 生产环境使用生产级Supabase实例，启用自动备份
 ```
 
 ## 3. 管理后台

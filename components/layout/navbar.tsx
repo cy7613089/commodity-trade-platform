@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -12,22 +13,68 @@ import {
 import { Button } from "@/components/ui/button";
 import { getAllCategories } from "@/lib/data/categories";
 import { Category } from "@/types";
-import { Menu, ShoppingCart, User, Package } from 'lucide-react';
+import { Menu, ShoppingCart, User, Package, LogOut, LogIn } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeModeToggle } from "@/components/theme/theme-mode-toggle";
 import { useCartStore } from "@/lib/store/cart-store";
+import { useToast } from "@/components/ui/use-toast";
+import { useSupabase } from "@/components/providers/supabase-provider";
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 export function Navbar() {
   const categories = getAllCategories();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+  const { supabase } = useSupabase();
   
   const itemCount = useCartStore((state) => state.getItemCount());
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    // 获取当前登录用户
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+    
+    fetchUser();
+    
+    // 监听认证状态变化
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "退出成功",
+        description: "您已成功退出登录",
+      });
+      router.push("/products");
+      router.refresh();
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "退出失败",
+        description: "退出登录时出现错误",
+      });
+    }
+  };
 
   const renderCategoryMenuItem = (category: Category, isMobile: boolean = true) => {
     const linkHref = `/products/categories/${category.slug}`;
@@ -88,22 +135,48 @@ export function Navbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>我的账户</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/account">个人中心</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/orders">
-                  <div className="flex items-center">
-                    <Package className="mr-2 h-4 w-4" />
-                    <span>我的订单</span>
-                  </div>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled>设置</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>退出登录</DropdownMenuItem>
+              {!loading && user ? (
+                <>
+                  <DropdownMenuLabel>
+                    {user.email ? user.email.split('@')[0] : '我的账户'}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/account">个人中心</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/orders">
+                      <div className="flex items-center">
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>我的订单</span>
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <div className="flex items-center">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>退出登录</span>
+                    </div>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuLabel>账户</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/login">
+                      <div className="flex items-center">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        <span>登录</span>
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/register">注册</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
