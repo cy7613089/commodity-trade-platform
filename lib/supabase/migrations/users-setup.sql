@@ -47,19 +47,26 @@ CREATE POLICY "用户可以管理自己的地址" ON public.addresses
 CREATE POLICY "管理员可以查看所有地址" ON public.addresses
   FOR SELECT USING (auth.jwt() ->> 'role' = 'admin');
 
--- 创建触发器函数，在用户注册时自动创建用户记录
+-- 创建触发器函数，在用户注册时自动创建用户记录 (简化版)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (id, email, name, email_verified, auth_provider, created_at)
+  -- 插入基本信息，暂时不处理 name 和 phone
+  INSERT INTO public.users (id, email, email_verified, auth_provider, created_at)
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email_confirmed_at IS NOT NULL,
     NEW.provider,
     NEW.created_at
   );
+  -- 尝试从元数据更新 name 和 phone (如果存在)
+  UPDATE public.users
+  SET 
+    name = NEW.raw_user_meta_data->>'name',
+    phone = NEW.raw_user_meta_data->>'phone'
+  WHERE id = NEW.id;
+  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

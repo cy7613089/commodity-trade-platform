@@ -17,7 +17,7 @@ import { useCartStore } from "@/lib/store/cart-store";
 import { formatPrice, safeMultiply, safeSubtract } from "@/lib/utils/format";
 import AddressSelector from "@/components/checkout/address-selector";
 import PaymentMethod from "@/components/checkout/payment-method";
-import CouponSelector from "@/components/checkout/coupon-selector";
+import CouponSelector from "@/components/cart/coupon-selector";
 
 export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);

@@ -2,9 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +13,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { toast } from "sonner";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -37,8 +39,9 @@ const formSchema = z.object({
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,51 +54,51 @@ export default function RegisterPage() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const { email, password, name, phone } = values;
+    setIsLoading(true);
+    setError(null);
+    setDebugInfo(null);
+
     try {
-      setIsLoading(true);
-      
-      // 使用我们的API端点进行注册
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-          name: values.name || undefined,
-          phone: values.phone || undefined,
+          email,
+          password,
+          name,
+          phone
         }),
       });
 
-      const data = await response.json();
-
+      const result = await response.json();
       if (!response.ok) {
-        toast({
-          variant: 'destructive',
-          title: '注册失败',
-          description: data.error || '注册过程中出现错误',
+        setDebugInfo(JSON.stringify(result, null, 2));
+        const errorMessage = result.error || '注册过程中出现错误';
+        toast.error("注册失败", {
+          description: errorMessage,
         });
+        setError(errorMessage);
         return;
+      } else {
+        setError(null);
+        setDebugInfo(null);
+        router.push('/register/confirm');
       }
-
-      toast({
-        title: '注册成功',
-        description: '请检查您的邮箱以完成注册流程',
-      });
-      router.push('/login');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      toast({
-        variant: 'destructive',
-        title: '注册失败',
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast.error("请求错误", {
         description: errorMessage,
       });
+      setError(errorMessage);
+      setDebugInfo(JSON.stringify({ error: errorMessage }, null, 2));
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex h-screen w-full items-center justify-center">
@@ -195,6 +198,25 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
+        
+        {/* 错误提示 */}
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>错误</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* 调试信息 */}
+        {debugInfo && (
+          <div className="mt-6">
+            <h3 className="text-md font-semibold mb-2">调试信息:</h3>
+            <pre className="bg-gray-100 p-3 rounded-md text-sm overflow-auto max-h-60">
+              {debugInfo}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );

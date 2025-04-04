@@ -17,6 +17,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/types/supabase';
+import { AuthError } from '@supabase/supabase-js';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -30,7 +35,9 @@ const formSchema = z.object({
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClientComponentClient<Database>();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,30 +47,22 @@ export default function LoginPage() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      
-      // 使用登录API端点
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-        }),
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast({
-          variant: 'destructive',
-          title: '登录失败',
-          description: data.error || '登录过程中出现错误',
-        });
+      if (signInError) {
+        if (signInError instanceof AuthError && signInError.message.toLowerCase().includes('email not confirmed')) {
+          setError("邮箱未验证，请检查您的收件箱（包括垃圾邮件箱）并点击确认链接。");
+        } else {
+          setError(signInError.message || '登录失败，请检查您的邮箱和密码。');
+        }
         return;
       }
 
@@ -73,27 +72,30 @@ export default function LoginPage() {
       });
       router.push('/products');
       router.refresh();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      toast({
-        variant: 'destructive',
-        title: '登录失败',
-        description: errorMessage,
-      });
+    } catch (catchError) {
+      const errorMessage = catchError instanceof Error ? catchError.message : '发生意外错误，请稍后重试。';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center">
-      <div className="w-full max-w-md space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen w-full items-center justify-center bg-gray-100 dark:bg-gray-950">
+      <div className="w-full max-w-md space-y-8 rounded-lg border bg-white p-8 shadow-lg dark:border-gray-800 dark:bg-gray-900">
         <div className="text-center">
           <h1 className="text-3xl font-bold">登录</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             登录您的账户以开始购物
           </p>
         </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>登录失败</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField

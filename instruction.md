@@ -805,180 +805,161 @@ Server Actions:
 - 使用Select和自定义选择器组件实现
 
 # 当前目录结构
+
 ├── README.md
 ├── app                       # Next.js App Router目录
 │   ├── (auth)                # 身份验证相关路由
-│   │   ├── login            
+│   │   ├── layout.tsx       # 认证页面共用布局
+│   │   ├── login
 │   │   │   └── page.tsx     # 登录页
-│   │   ├── register         
+│   │   ├── ping-supabase
+│   │   │   └── page.tsx     # Supabase连接测试页
+│   │   ├── register
+│   │   │   ├── confirm
+│   │   │   │   └── page.tsx # 注册确认页
 │   │   │   └── page.tsx     # 注册页
-│   │   ├── reset-password   # 密码重置
-│   │   │   └── page.tsx
-│   │   └── layout.tsx       # 认证页面共用布局
+│   │   └── test-register
+│   │       └── page.tsx     # 注册测试页
 │   ├── (shop)                # 客户端商城路由
-│   │   ├── page.tsx         # 商城首页(使用现有page.tsx)
-│   │   ├── products         # 商品相关页面
-│   │   │   ├── page.tsx     # 商品列表页
-│   │   │   ├── [id]         # 商品详情页路由 
-│   │   │   │   └── page.tsx # 商品详情页
-│   │   │   └── categories   # 分类浏览页
-│   │   │       └── [slug]
-│   │   │           └── page.tsx
+│   │   ├── account          # 用户账户页面
+│   │   │   ├── addresses
+│   │   │   │   └── page.tsx # 地址管理页
+│   │   │   ├── page.tsx     # 账户首页
+│   │   │   └── security
+│   │   │       └── page.tsx # 安全设置页
 │   │   ├── cart             # 购物车页面
 │   │   │   └── page.tsx
 │   │   ├── checkout         # 结算页面
-│   │   │   ├── page.tsx
-│   │   │   └── payment      # 支付页面
-│   │   │       └── page.tsx
+│   │   │   ├── page.tsx     # 结算步骤页
+│   │   │   └── payment
+│   │   │       └── page.tsx # 支付页(mock)
+│   │   ├── layout.tsx       # 商城页面共用布局
 │   │   ├── orders           # 订单管理页面
 │   │   │   ├── [id]
-│   │   │   │   └── page.tsx
-│   │   │   └── page.tsx
-│   │   ├── account          # 用户账户页面
-│   │   │   ├── addresses
-│   │   │   │   └── page.tsx
-│   │   │   ├── page.tsx
-│   │   │   └── security
-│   │   │       └── page.tsx
-│   │   └── layout.tsx       # 商城页面共用布局(改造现有layout.tsx)
-│   ├── admin                 # 管理后台路由
-│   │   ├── page.tsx         # 管理后台首页
-│   │   ├── products         # 商品管理页面
-│   │   ├── orders           # 订单管理页面
-│   │   ├── coupons          # 优惠券管理页面
-│   │   └── layout.tsx       # 管理后台共用布局
+│   │   │   │   └── page.tsx # 订单详情页
+│   │   │   └── page.tsx     # 订单列表页
+│   │   └── products         # 商品相关页面
+│   │       ├── [id]
+│   │       │   └── page.tsx # 商品详情页
+│   │       └── page.tsx     # 商品列表页
 │   ├── api                   # API路由
 │   │   ├── auth             # 认证相关API
-│   │   ├── products         # 商品相关API
-│   │   │   ├── route.ts     # 商品列表API
-│   │   │   ├── [id]
-│   │   │   │   └── route.ts # 单个商品API
-│   │   │   └── search
-│   │   │       └── route.ts # 商品搜索API
-│   │   ├── orders           # 订单相关API
-│   │   ├── coupons          # 优惠券相关API
-│   │   └── payment          # 支付相关API(mock)
+│   │   │   ├── login
+│   │   │   │   └── route.ts # 登录API
+│   │   │   ├── logout
+│   │   │   │   └── route.ts # 登出API
+│   │   │   └── register
+│   │   │       └── route.ts # 注册API
+│   │   ├── ping-supabase
+│   │   │   └── route.ts     # Supabase连接测试API
+│   │   ├── supabase-timing-test
+│   │   │   └── route.ts     # Supabase性能测试API
+│   │   └── user             # 用户相关API
+│   │       ├── addresses
+│   │       │   ├── [id]
+│   │       │   │   └── route.ts # 单个地址API
+│   │       │   └── route.ts     # 地址列表/创建API
+│   │       └── profile
+│   │           └── route.ts     # 用户资料API
+│   ├── auth                # Supabase认证回调
+│   │   └── callback
+│   │       └── route.ts
 │   ├── favicon.ico
 │   ├── globals.css           # 全局样式
-│   ├── layout.tsx            # 根布局(已存在)
-│   ├── page.tsx              # 根页面
-│   └── profile               # 个人资料页面
+│   ├── layout.tsx            # 根布局
+│   ├── page.tsx              # 根页面/首页
+│   └── profile               # 用户个人资料页(可能与(shop)/account冲突或重复)
 │       └── page.tsx
 ├── components                # 组件目录
-│   ├── ui                    # 已有的UI组件库
-│   │   ├── alert.tsx
-│   │   ├── aspect-ratio.tsx
-│   │   ├── avatar.tsx
-│   │   ├── badge.tsx
-│   │   ├── button.tsx
-│   │   ├── calendar.tsx
-│   │   ├── card.tsx
-│   │   ├── carousel.tsx
-│   │   ├── checkbox.tsx
-│   │   ├── dialog.tsx
-│   │   ├── dropdown-menu.tsx
-│   │   ├── form.tsx
-│   │   ├── input.tsx
-│   │   ├── label.tsx
-│   │   ├── navigation-menu.tsx
-│   │   ├── pagination.tsx
-│   │   ├── popover.tsx
-│   │   ├── radio-group.tsx
-│   │   ├── scroll-area.tsx
-│   │   ├── select.tsx
-│   │   ├── separator.tsx
-│   │   ├── sheet.tsx
-│   │   ├── skeleton.tsx
-│   │   ├── slider.tsx
-│   │   ├── sonner.tsx
-│   │   ├── switch.tsx
-│   │   ├── table.tsx
-│   │   ├── tabs.tsx
-│   │   ├── textarea.tsx
-│   │   ├── toast.tsx
-│   │   ├── tooltip.tsx
-│   │   └── use-toast.ts
+│   ├── cart                 # 购物车相关组件 (新增目录)
+│   │   └── coupon-selector.tsx # 优惠券选择器 (已移动)
+│   ├── checkout             # 结算相关组件
+│   │   ├── address-selector.tsx # 地址选择器
+│   │   └── payment-method.tsx # 支付方式选择器
 │   ├── layout               # 布局组件
-│   │   ├── header.tsx       # 页头
-│   │   ├── footer.tsx       # 页脚
-│   │   ├── navbar.tsx       # 导航栏
-│   │   ├── sidebar.tsx      # 侧边栏
-│   │   └── admin-nav.tsx    # 管理后台导航
+│   │   └── navbar.tsx       # 导航栏
 │   ├── products             # 商品相关组件
 │   │   ├── product-card.tsx # 商品卡片
 │   │   ├── product-details.tsx # 商品详情组件
-│   │   ├── product-grid.tsx # 商品网格
 │   │   ├── product-filter.tsx # 商品筛选
+│   │   ├── product-grid.tsx # 商品网格
 │   │   └── product-pagination.tsx # 商品分页
-│   ├── cart                 # 购物车相关组件
-│   │   ├── cart-item.tsx    # 购物车项目
-│   │   └── coupon-selector.tsx # 优惠券选择器
-│   ├── checkout             # 结算相关组件
-│   │   ├── address-selector.tsx # 地址选择器
-│   │   ├── coupon-selector.tsx # 优惠券选择器
-│   │   └── payment-method.tsx # 支付方式选择器
+│   ├── providers            # 全局上下文提供者
+│   │   └── supabase-provider.tsx # Supabase Context
 │   ├── search               # 搜索相关组件
-│   │   ├── search-bar.tsx   # 搜索框组件
-│   │   ├── search-box.tsx   # 搜索框组件
-│   │   └── filter-panel.tsx # 高级筛选面板
+│   │   └── search-box.tsx   # 搜索框组件
 │   ├── theme                # 主题相关组件
 │   │   ├── theme-mode-toggle.tsx # 主题模式切换
 │   │   └── theme-provider.tsx # 主题提供者
-│   ├── providers            # 全局上下文提供者
-│   │   ├── theme-provider.tsx
-│   │   └── session-provider.tsx
-│   └── common               # 通用组件
-│       ├── rating.tsx       # 评分组件
-│       ├── price.tsx        # 价格显示组件(含折扣)
-│       └── image-gallery.tsx # 图片画廊
-├── components.json
-├── eslint.config.mjs
-├── instruction.md
-├── lib                       # 工具库
-│   ├── utils.ts              # 已有的工具函数
-│   ├── utils                 # 工具函数目录
-│   │   ├── format.ts         # 格式化工具(价格、日期等)
-│   │   ├── validation.ts     # 表单验证工具
-│   │   └── storage.ts        # 本地存储工具
-│   ├── hooks                 # 自定义Hook目录
-│   │   ├── hooks.ts          # 自定义Hook
-│   │   └── use-debounce.ts   # 防抖钩子
-│   ├── data                  # 数据目录
-│   │   └── categories.ts     # 分类数据
-│   ├── services              # 服务目录
-│   │   └── search.ts         # 搜索服务
+│   └── ui                    # UI基础组件 (shadcn/ui)
+│       ├── alert.tsx
+│       ├── aspect-ratio.tsx
+│       ├── avatar.tsx
+│       ├── badge.tsx
+│       ├── button.tsx
+│       ├── calendar.tsx
+│       ├── card.tsx
+│       ├── carousel.tsx
+│       ├── checkbox.tsx
+│       ├── dialog.tsx
+│       ├── dropdown-menu.tsx
+│       ├── form.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── navigation-menu.tsx
+│       ├── pagination.tsx
+│       ├── popover.tsx
+│       ├── radio-group.tsx
+│       ├── scroll-area.tsx
+│       ├── select.tsx
+│       ├── separator.tsx
+│       ├── sheet.tsx
+│       ├── skeleton.tsx
+│       ├── slider.tsx
+│       ├── sonner.tsx
+│       ├── switch.tsx
+│       ├── table.tsx
+│       ├── tabs.tsx
+│       ├── textarea.tsx
+│       ├── toast.tsx
+│       ├── tooltip.tsx
+│       └── use-toast.ts
+├── components.json           # shadcn/ui 配置文件
+├── eslint.config.mjs         # ESLint 配置文件
+├── instruction.md            # 项目说明与规划文档
+├── lib                       # 工具库与核心逻辑
+│   ├── auth.ts               # 认证相关工具函数
+│   ├── data
+│   │   └── categories.ts     # 静态或种子分类数据
 │   ├── db.ts                 # Supabase客户端配置
-│   ├── supabase              # Supabase相关配置
-│   │   ├── schema.ts         # 数据库schema定义
-│   │   └── migrations        # 数据库迁移文件
-│   ├── auth.ts               # 认证相关工具
-│   ├── coupon-rules.ts       # 优惠券规则处理
-│   ├── store                 # 状态管理
+│   ├── hooks
+│   │   └── use-debounce.ts   # 防抖 Hook
+│   ├── services
+│   │   └── search.ts         # 搜索服务逻辑
+│   ├── store                 # 状态管理 (例如 Zustand 或 Redux)
 │   │   ├── cart-store.ts     # 购物车状态
 │   │   ├── order-store.ts    # 订单状态
-│   │   ├── user-store.ts     # 用户状态
-│   │   └── filter-store.ts   # 筛选条件状态
-│   └── actions               # Server Actions集合 
-│       ├── product-actions.ts
-│       ├── order-actions.ts
-│       └── coupon-actions.ts
-├── middleware.ts             # 路由权限控制
-├── types                     # 类型定义目录
-│   └── index.ts              # 类型定义文件
-├── __tests__                 # 测试文件目录
-│   ├── components            # 组件测试
-│   └── api                   # API测试
-├── .env.example              # 环境变量示例
-├── next-env.d.ts
-├── next.config.ts
+│   │   └── user-store.ts     # 用户状态
+│   ├── supabase
+│   │   └── migrations        # Supabase 数据库迁移文件
+│   │       └── users-setup.sql # 初始用户相关设置SQL
+│   ├── utils
+│   │   └── format.ts         # 格式化工具函数 (日期, 货币等)
+│   └── utils.ts              # 通用工具函数 (shadcn/ui 生成)
+├── middleware.ts             # Next.js 中间件 (认证等)
+├── next-env.d.ts             # Next.js TypeScript 环境定义
+├── next.config.ts            # Next.js 配置文件
 ├── package-lock.json
 ├── package.json
-├── postcss.config.mjs
+├── postcss.config.mjs        # PostCSS 配置文件
 ├── public                    # 静态资源目录
 │   ├── file.svg
 │   ├── globe.svg
 │   ├── next.svg
-│   ├── products              # 商品图片目录(新建)
+│   ├── products # 商品图片目录
 │   ├── vercel.svg
 │   └── window.svg
-└── tsconfig.json
+├── tsconfig.json             # TypeScript 配置文件
+└── types                     # TypeScript 类型定义
+    ├── index.ts              # 项目自定义类型
+    └── supabase.ts           # Supabase 数据库类型 (自动生成)
