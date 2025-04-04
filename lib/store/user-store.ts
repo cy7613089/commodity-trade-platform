@@ -27,10 +27,22 @@ export interface User {
   addresses: Address[];
 }
 
+// API返回的用户Profile接口
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  avatar: string | null;
+  created_at: string;
+}
+
 // 用户状态接口
 interface UserState {
   user: User | null;
   mockInitialized: boolean;
+  isLoading: boolean;
+  error: string | null;
   initMockUser: () => void;
   updateUserInfo: (updatedInfo: Partial<User>) => void;
   addAddress: (address: Omit<Address, 'id'>) => void;
@@ -38,6 +50,11 @@ interface UserState {
   deleteAddress: (id: string) => void;
   setDefaultAddress: (id: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
+  
+  // 新增API相关方法
+  fetchUserProfile: () => Promise<boolean>;
+  syncUserWithAuth: () => Promise<void>;
+  convertProfileToUser: (profile: UserProfile) => User;
 }
 
 // 生成随机的用户数据
@@ -77,6 +94,90 @@ const generateMockUser = (): User => {
 export const useUserStore = create<UserState>((set, get) => ({
   user: null,
   mockInitialized: false,
+  isLoading: false,
+  error: null,
+  
+  // 将API返回的Profile转换为User格式
+  convertProfileToUser: (profile: UserProfile): User => {
+    return {
+      id: profile.id,
+      username: profile.name || profile.email.split('@')[0],
+      email: profile.email,
+      phone: profile.phone || '',
+      avatar: profile.avatar || undefined,
+      nickname: profile.name || undefined,
+      createdAt: profile.created_at,
+      addresses: [], // 地址需要单独获取
+    };
+  },
+  
+  // 从API获取用户资料
+  fetchUserProfile: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      const response = await fetch('/api/user/profile');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('获取用户资料失败:', errorData);
+        
+        // 如果是401未认证错误，清空用户信息
+        if (response.status === 401) {
+          set({ user: null, isLoading: false, error: "用户未登录" });
+          return false;
+        }
+        
+        set({ 
+          isLoading: false, 
+          error: errorData.error || '获取用户资料失败' 
+        });
+        return false;
+      }
+      
+      const profileData: UserProfile = await response.json();
+      const userData = get().convertProfileToUser(profileData);
+      
+      console.log('获取到用户资料:', profileData);
+      console.log('转换后的用户数据:', userData);
+      
+      set({
+        user: userData,
+        mockInitialized: true,
+        isLoading: false,
+        error: null
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('获取用户资料异常:', error);
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : '未知错误' 
+      });
+      return false;
+    }
+  },
+  
+  // 同步用户数据与认证状态
+  syncUserWithAuth: async () => {
+    try {
+      // 尝试从API获取真实用户数据
+      const success = await get().fetchUserProfile();
+      
+      // 如果API获取失败且未初始化过模拟数据，则使用模拟数据
+      if (!success && !get().mockInitialized) {
+        console.log('API获取失败，使用模拟数据');
+        get().initMockUser();
+      }
+    } catch (error) {
+      console.error('同步用户数据失败:', error);
+      // 出错时默认使用模拟数据
+      if (!get().mockInitialized) {
+        get().initMockUser();
+      }
+    }
+  },
   
   // 初始化模拟用户数据
   initMockUser: () => {
@@ -87,9 +188,20 @@ export const useUserStore = create<UserState>((set, get) => ({
   
   // 更新用户信息
   updateUserInfo: (updatedInfo) => {
-    set((state) => ({
-      user: state.user ? { ...state.user, ...updatedInfo } : null,
-    }));
+    console.log('更新用户信息:', updatedInfo);
+    
+    set((state) => {
+      if (!state.user) return state;
+      
+      const updatedUser = { 
+        ...state.user, 
+        ...updatedInfo 
+      };
+      
+      console.log('更新后的用户信息:', updatedUser);
+      
+      return { user: updatedUser };
+    });
   },
   
   // 添加地址
@@ -202,7 +314,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
   
   // 修改密码（模拟）
-  changePassword: async (oldPassword, _newPassword) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  changePassword: async (oldPassword, newPassword: string) => {
     // 模拟密码验证和修改过程
     await new Promise((resolve) => setTimeout(resolve, 500));
     

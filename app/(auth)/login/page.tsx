@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,7 @@ import { Database } from '@/types/supabase';
 import { AuthError } from '@supabase/supabase-js';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { useUserStore } from '@/lib/store/user-store';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -34,10 +35,14 @@ const formSchema = z.object({
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/products';
+  
   const { toast } = useToast();
   const supabase = createClientComponentClient<Database>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { syncUserWithAuth } = useUserStore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -65,12 +70,17 @@ export default function LoginPage() {
         }
         return;
       }
+      
+      // 登录成功后同步用户数据
+      await syncUserWithAuth();
 
       toast({
         title: '登录成功',
         description: '欢迎回来！',
       });
-      router.push('/products');
+      
+      // 重定向到之前尝试访问的页面或默认页面
+      router.push(redirectPath);
       router.refresh();
     } catch (catchError) {
       const errorMessage = catchError instanceof Error ? catchError.message : '发生意外错误，请稍后重试。';

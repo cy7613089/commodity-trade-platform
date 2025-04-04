@@ -1,22 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
+import { type Database } from '@/types/supabase';
 
-// 创建带超时的fetch函数
-const fetchWithTimeout = (url: string, options: RequestInit, timeout = 20000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  const fetchPromise = fetch(url, {
-    ...options,
-    signal: controller.signal
-  });
-  
-  return Promise.race([
-    fetchPromise,
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`请求超时 (${timeout}ms)`)), timeout)
-    )
-  ]).finally(() => clearTimeout(id));
+// 创建带超时的fetch函数 - 使用 AbortSignal.timeout 简化实现
+const fetchWithTimeout = (timeout = 8000) => {
+  return async (url: string, options: RequestInit = {}) => {
+    try {
+      const controller = new AbortController();
+      options.signal = controller.signal;
+      
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeout);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(timeout)
+        });
+        return response;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.error(`Supabase 请求错误 (${timeout}ms):`, error);
+      throw error;
+    }
+  };
 };
 
 // 记录Supabase环境变量状态
@@ -36,24 +45,29 @@ export const supabase = createClient<Database>(
   SUPABASE_ANON_KEY || '',
   {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false
+      persistSession: true,
+      storageKey: 'supabase-auth',
+      autoRefreshToken: true,
+      detectSessionInUrl: true
     },
     global: {
-      fetch: fetchWithTimeout as unknown as typeof fetch
+      fetch: fetchWithTimeout()
+    },
+    db: {
+      schema: 'public'
     }
   }
 );
 
 // 创建管理员Supabase客户端
-export function createAdminClient<T = Database>() {
+export function createAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!serviceRoleKey) {
     console.error('警告: SUPABASE_SERVICE_ROLE_KEY环境变量未设置');
   }
   
-  return createClient<T>(
+  return createClient<Database>(
     SUPABASE_URL || '',
     serviceRoleKey || '',
     {
@@ -62,7 +76,7 @@ export function createAdminClient<T = Database>() {
         autoRefreshToken: false
       },
       global: {
-        fetch: fetchWithTimeout as unknown as typeof fetch
+        fetch: fetchWithTimeout()
       }
     }
   );

@@ -936,7 +936,7 @@ Server Actions:
 │   │   └── use-debounce.ts   # 防抖 Hook
 │   ├── services
 │   │   └── search.ts         # 搜索服务逻辑
-│   ├── store                 # 状态管理 (例如 Zustand 或 Redux)
+│   ├── store                 # 状态管理 (Zustand)
 │   │   ├── cart-store.ts     # 购物车状态
 │   │   ├── order-store.ts    # 订单状态
 │   │   └── user-store.ts     # 用户状态

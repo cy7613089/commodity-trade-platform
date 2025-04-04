@@ -19,6 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useUserStore } from '@/lib/store/user-store';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -54,6 +55,8 @@ export default function RegisterPage() {
     },
   });
 
+  const { syncUserWithAuth } = useUserStore();
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const { email, password, name, phone } = values;
     setIsLoading(true);
@@ -86,6 +89,7 @@ export default function RegisterPage() {
       } else {
         setError(null);
         setDebugInfo(null);
+        await syncUserWithAuth();
         router.push('/register/confirm');
       }
     } catch (error) {
