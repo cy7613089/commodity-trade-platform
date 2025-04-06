@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -13,12 +13,13 @@ import { ChevronLeft, AlertCircle, CheckCircle, Clock, Package, Truck, XCircle }
 import { formatPrice, safeMultiply } from "@/lib/utils/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export default function OrderDetailsPage({ params }: { params: { id: string } }) {
+export default function OrderDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const router = useRouter();
   const { initMockOrders, getOrderById, mockInitialized, cancelOrder, confirmReceived } = useOrderStore();
   const [mounted, setMounted] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
-  
+
   // 客户端组件挂载和初始化
   useEffect(() => {
     setMounted(true);
@@ -31,7 +32,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
       setOrder(foundOrder);
     }
   }, [initMockOrders, getOrderById, mockInitialized, params.id]);
-  
+
   // 根据订单状态获取图标
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
@@ -49,7 +50,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
         return null;
     }
   };
-  
+
   // 根据订单状态获取颜色
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
@@ -67,17 +68,17 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
         return "text-gray-500 bg-gray-100";
     }
   };
-  
+
   // 格式化日期
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
-  
+
   if (!mounted) {
     return <div className="container mx-auto py-10">加载中...</div>;
   }
-  
+
   if (!order) {
     return (
       <div className="container mx-auto py-10">
@@ -100,7 +101,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
       </div>
     );
   }
-  
+
   return (
     <div className="container mx-auto py-10">
       <div className="mb-6">

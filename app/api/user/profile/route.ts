@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/db';
 export async function GET() {
   try {
     // 获取当前认证会话
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     
     // 使用 createRouteHandlerClient 获取会话
     const supabase = createRouteHandlerClient({ 
@@ -171,7 +171,7 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     // 获取当前认证会话
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     
     // 使用 createRouteHandlerClient 获取会话
     const supabase = createRouteHandlerClient({ 

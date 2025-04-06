@@ -3,13 +3,14 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // 获取单个地址详情
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, props: RouteParams) {
+  const params = await props.params;
   try {
     const supabase = createRouteHandlerClient({ cookies });
     
@@ -49,7 +50,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // 更新地址
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export async function PATCH(request: NextRequest, props: RouteParams) {
+  const params = await props.params;
   try {
     const supabase = createRouteHandlerClient({ cookies });
     
@@ -119,7 +121,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 }
 
 // 删除地址
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, props: RouteParams) {
+  const params = await props.params;
   try {
     const supabase = createRouteHandlerClient({ cookies });
     
