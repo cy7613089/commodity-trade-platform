@@ -32,6 +32,7 @@ alwaysApply: true
     - 实现响应式设计，确保在不同设备上的良好体验。
     - 使用TypeScript进行类型检查，提高代码质量。
     - 编写详细的代码注释，并在代码中添加必要的错误处理和日志记录。
+    - 编写api时，params 被使用之前应该先对其 await，参考https://nextjs.org/docs/messages/sync-dynamic-apis
 
     ### 解决问题时：
     - 全面阅读相关代码文件，理解所有代码的功能和逻辑。
