@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ChevronLeft, Heart, MinusCircle, PlusCircle, Share2, ShoppingCart, Star, Truck } from "lucide-react";
+import { ChevronLeft, Heart, MinusCircle, PlusCircle, Share2, ShoppingCart, Star, Truck, Loader2 } from "lucide-react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ export function ProductDetails({
   relatedProducts?: ProductType[] 
 }) {
   const [quantity, setQuantity] = useState(1);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const router = useRouter();
   const { addItem } = useCartStore();
   
@@ -46,25 +47,61 @@ export function ProductDetails({
     }
   };
 
-  const handleAddToCart = () => {
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      originalPrice: product.originalPrice,
-      quantity: quantity,
-      image: product.image,
-      stock: product.stock,
-    });
+  const handleAddToCart = async () => {
+    if (product.stock <= 0) {
+      toast.error("商品已售罄");
+      return;
+    }
     
-    // 显示添加成功提示
-    toast.success("已添加到购物车", {
-      description: `${product.name} x ${quantity}`,
-      action: {
-        label: "查看购物车",
-        onClick: () => router.push("/cart"),
-      },
-    });
+    setIsAddingToCart(true);
+    
+    try {
+      await addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        quantity: quantity,
+        image: product.image,
+        stock: product.stock,
+      });
+      
+      // 成功消息已在store中处理
+    } catch (error) {
+      // 错误已在store中处理
+      console.error("添加到购物车失败:", error);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+  
+  const handleBuyNow = async () => {
+    if (product.stock <= 0) {
+      toast.error("商品已售罄");
+      return;
+    }
+    
+    setIsAddingToCart(true);
+    
+    try {
+      await addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        quantity: quantity,
+        image: product.image,
+        stock: product.stock,
+      });
+      
+      // 添加成功后跳转到购物车页面
+      router.push("/cart");
+    } catch (error) {
+      // 错误已在store中处理
+      console.error("立即购买失败:", error);
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
   // 计算折扣百分比
@@ -181,24 +218,28 @@ export function ProductDetails({
               size="lg" 
               className="flex-1 gap-2" 
               onClick={handleAddToCart}
-              disabled={product.stock <= 0}
+              disabled={product.stock <= 0 || isAddingToCart}
             >
-              <ShoppingCart className="h-5 w-5" />
-              {product.stock <= 0 ? "已售罄" : "加入购物车"}
+              {isAddingToCart ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  添加中...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-5 w-5" />
+                  {product.stock <= 0 ? "已售罄" : "加入购物车"}
+                </>
+              )}
             </Button>
             <Button 
               size="lg" 
               variant="secondary" 
               className="flex-1 gap-2" 
-              onClick={() => {
-                if (product.stock > 0) {
-                  handleAddToCart();
-                  router.push("/cart");
-                }
-              }}
-              disabled={product.stock <= 0}
+              onClick={handleBuyNow}
+              disabled={product.stock <= 0 || isAddingToCart}
             >
-              {product.stock <= 0 ? "已售罄" : "立即购买"}
+              {isAddingToCart ? "处理中..." : (product.stock <= 0 ? "已售罄" : "立即购买")}
             </Button>
             <Button size="icon" variant="outline">
               <Heart className="h-5 w-5" />

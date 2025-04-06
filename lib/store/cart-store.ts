@@ -1,79 +1,470 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeMultiply, safeAdd } from '@/lib/utils/format';
+import { toast } from 'sonner';
 
 export interface CartItem {
   id: string;
+  productId: string;
   name: string;
   price: number;
   originalPrice?: number;
   quantity: number;
   image: string;
   stock: number;
+  selected: boolean;
+  subtotal: number;
 }
 
-interface CartStore {
+interface CartState {
   items: CartItem[];
-  addItem: (item: CartItem) => void;
-  removeItem: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void;
+  loading: boolean;
+  error: string | null;
+  totalAmount: number;
+  selectedTotalAmount: number;
+  itemCount: number;
+}
+
+interface CartStore extends CartState {
+  // 获取购物车数据
+  fetchCart: () => Promise<void>;
+  
+  // 添加商品到购物车
+  addItem: (product: {
+    id: string;
+    name: string;
+    price: number;
+    originalPrice?: number;
+    image: string;
+    quantity: number;
+    stock: number;
+  }) => Promise<void>;
+  
+  // 更新商品数量
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  
+  // 更新商品选中状态
+  updateSelected: (itemId: string, selected: boolean) => Promise<void>;
+  
+  // 批量更新选中状态
+  updateBatchSelected: (itemIds: string[], selected: boolean) => Promise<void>;
+  
+  // 从购物车中移除商品
+  removeItem: (itemId: string) => Promise<void>;
+  
+  // 清空购物车
+  clearCart: () => Promise<void>;
+  
+  // 获取本地统计信息
   getItemCount: () => number;
   getTotalPrice: () => number;
-  getTotalOriginalPrice: () => number;
+  getSelectedTotalPrice: () => number;
 }
 
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      loading: false,
+      error: null,
+      totalAmount: 0,
+      selectedTotalAmount: 0,
+      itemCount: 0,
       
-      addItem: (newItem) => {
-        set((state) => {
-          const existingItem = state.items.find(item => item.id === newItem.id);
+      fetchCart: async () => {
+        try {
+          set({ loading: true, error: null });
           
-          if (existingItem) {
-            // 如果商品已存在，更新数量
-            const newQuantity = existingItem.quantity + newItem.quantity;
-            // 确保不超过库存
-            const finalQuantity = Math.min(newQuantity, newItem.stock);
-            
-            return {
-              items: state.items.map(item =>
-                item.id === newItem.id
-                  ? { ...item, quantity: finalQuantity }
-                  : item
-              )
-            };
+          const response = await fetch('/api/cart');
+          
+          if (!response.ok) {
+            // 如果是401（未认证）错误，不显示错误提示
+            if (response.status !== 401) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || '获取购物车失败');
+            }
+            // 未登录时使用空购物车
+            set({ 
+              items: [], 
+              loading: false, 
+              totalAmount: 0, 
+              selectedTotalAmount: 0,
+              itemCount: 0 
+            });
+            return;
           }
           
-          // 如果商品不存在，添加新商品
-          return {
-            items: [...state.items, newItem]
-          };
-        });
+          const cartData = await response.json();
+          
+          set({ 
+            items: cartData.items || [], 
+            loading: false,
+            totalAmount: cartData.totalAmount || 0,
+            selectedTotalAmount: cartData.selectedTotalAmount || 0,
+            itemCount: cartData.itemCount || 0
+          });
+        } catch (error) {
+          console.error('获取购物车失败:', error);
+          set({ 
+            loading: false, 
+            error: error instanceof Error ? error.message : '获取购物车失败' 
+          });
+        }
       },
       
-      removeItem: (id) => {
-        set((state) => ({
-          items: state.items.filter(item => item.id !== id)
-        }));
+      addItem: async (product) => {
+        try {
+          set({ loading: true, error: null });
+          
+          const response = await fetch('/api/cart/items', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              productId: product.id,
+              quantity: product.quantity,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '添加到购物车失败');
+          }
+          
+          const result = await response.json();
+          
+          // 添加成功后，重新获取购物车数据
+          await get().fetchCart();
+          
+          // 显示成功提示
+          toast.success(result.message || '商品已添加到购物车');
+        } catch (error) {
+          console.error('添加到购物车失败:', error);
+          set({ 
+            loading: false, 
+            error: error instanceof Error ? error.message : '添加到购物车失败' 
+          });
+          
+          // 显示错误提示
+          toast.error(error instanceof Error ? error.message : '添加到购物车失败');
+        }
       },
       
-      updateQuantity: (id, quantity) => {
-        set((state) => ({
-          items: state.items.map(item =>
-            item.id === id
-              ? { ...item, quantity: Math.max(0, Math.min(quantity, item.stock)) }
-              : item
-          )
-        }));
+      updateQuantity: async (itemId, quantity) => {
+        // 保存当前状态用于可能的回滚
+        const currentItems = [...get().items];
+        const currentTotalAmount = get().totalAmount;
+        const currentSelectedTotalAmount = get().selectedTotalAmount;
+        const currentItemCount = get().itemCount;
+        
+        try {
+          // 确保数量有效
+          if (quantity < 1) {
+            throw new Error('商品数量必须大于0');
+          }
+          
+          // 乐观更新：立即更新前端状态，使UI立即响应
+          set((state) => {
+            const updatedItems = state.items.map(item => 
+              item.id === itemId ? { ...item, quantity, subtotal: safeMultiply(item.price, quantity) } : item
+            );
+            
+            const totalAmount = updatedItems.reduce(
+              (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+              0
+            );
+            
+            const selectedTotalAmount = updatedItems
+              .filter(item => item.selected)
+              .reduce(
+                (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+                0
+              );
+            
+            return {
+              items: updatedItems,
+              totalAmount,
+              selectedTotalAmount,
+              itemCount: updatedItems.length
+            };
+          });
+          
+          // 发送API请求
+          const response = await fetch(`/api/cart/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quantity,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '更新商品数量失败');
+          }
+          
+          // API请求成功，不需要额外操作
+          await response.json();
+          
+        } catch (error) {
+          console.error('更新商品数量失败:', error);
+          
+          // API请求失败，回滚到之前的状态
+          set((state) => ({
+            ...state,
+            items: currentItems,
+            totalAmount: currentTotalAmount,
+            selectedTotalAmount: currentSelectedTotalAmount,
+            itemCount: currentItemCount,
+            error: error instanceof Error ? error.message : '更新商品数量失败'
+          }));
+          
+          // 显示错误提示
+          toast.error(error instanceof Error ? error.message : '更新商品数量失败');
+        }
       },
       
-      clearCart: () => {
-        set({ items: [] });
+      updateSelected: async (itemId, selected) => {
+        // 保存当前状态用于可能的回滚
+        const currentItems = [...get().items];
+        const currentSelectedTotalAmount = get().selectedTotalAmount;
+        
+        try {
+          // 乐观更新：立即更新前端状态
+          set((state) => {
+            const updatedItems = state.items.map(item => 
+              item.id === itemId ? { ...item, selected } : item
+            );
+            
+            const selectedTotalAmount = updatedItems
+              .filter(item => item.selected)
+              .reduce(
+                (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+                0
+              );
+            
+            return {
+              items: updatedItems,
+              selectedTotalAmount
+            };
+          });
+          
+          // 发送API请求
+          const response = await fetch(`/api/cart/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              selected,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '更新商品选中状态失败');
+          }
+          
+          // API请求成功，不需要额外操作
+          await response.json();
+          
+        } catch (error) {
+          console.error('更新商品选中状态失败:', error);
+          
+          // API请求失败，回滚到之前的状态
+          set((state) => ({
+            ...state,
+            items: currentItems,
+            selectedTotalAmount: currentSelectedTotalAmount,
+            error: error instanceof Error ? error.message : '更新商品选中状态失败'
+          }));
+          
+          // 显示错误提示
+          toast.error(error instanceof Error ? error.message : '更新商品选中状态失败');
+        }
       },
       
+      updateBatchSelected: async (itemIds, selected) => {
+        // 保存当前状态用于可能的回滚
+        const currentItems = [...get().items];
+        const currentSelectedTotalAmount = get().selectedTotalAmount;
+        
+        try {
+          // 乐观更新：立即更新前端状态
+          set((state) => {
+            const updatedItems = state.items.map(item => 
+              itemIds.includes(item.id) ? { ...item, selected } : item
+            );
+            
+            const selectedTotalAmount = updatedItems
+              .filter(item => item.selected)
+              .reduce(
+                (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+                0
+              );
+            
+            return {
+              items: updatedItems,
+              selectedTotalAmount
+            };
+          });
+          
+          // 发送API请求
+          const response = await fetch('/api/cart/items/select', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              itemIds,
+              selected,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '批量更新商品选中状态失败');
+          }
+          
+          // API请求成功，不需要额外操作
+          await response.json();
+          
+        } catch (error) {
+          console.error('批量更新商品选中状态失败:', error);
+          
+          // API请求失败，回滚到之前的状态
+          set((state) => ({
+            ...state,
+            items: currentItems,
+            selectedTotalAmount: currentSelectedTotalAmount,
+            error: error instanceof Error ? error.message : '批量更新商品选中状态失败'
+          }));
+          
+          // 显示错误提示
+          toast.error(error instanceof Error ? error.message : '批量更新商品选中状态失败');
+        }
+      },
+      
+      removeItem: async (itemId) => {
+        // 保存当前状态用于可能的回滚
+        const currentItems = [...get().items];
+        const currentTotalAmount = get().totalAmount;
+        const currentSelectedTotalAmount = get().selectedTotalAmount;
+        const currentItemCount = get().itemCount;
+        
+        try {
+          // 乐观更新：立即更新前端状态
+          set((state) => {
+            const updatedItems = state.items.filter(item => item.id !== itemId);
+            
+            const totalAmount = updatedItems.reduce(
+              (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+              0
+            );
+            
+            const selectedTotalAmount = updatedItems
+              .filter(item => item.selected)
+              .reduce(
+                (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+                0
+              );
+            
+            return {
+              items: updatedItems,
+              totalAmount,
+              selectedTotalAmount,
+              itemCount: updatedItems.length
+            };
+          });
+          
+          // 显示成功提示（乐观更新）
+          toast.success('商品已从购物车中删除');
+          
+          // 发送API请求
+          const response = await fetch(`/api/cart/items/${itemId}`, {
+            method: 'DELETE',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '删除商品失败');
+          }
+          
+          // API请求成功，不需要额外操作
+          await response.json();
+          
+        } catch (error) {
+          console.error('删除商品失败:', error);
+          
+          // API请求失败，回滚到之前的状态
+          set((state) => ({
+            ...state,
+            items: currentItems,
+            totalAmount: currentTotalAmount,
+            selectedTotalAmount: currentSelectedTotalAmount,
+            itemCount: currentItemCount,
+            error: error instanceof Error ? error.message : '删除商品失败'
+          }));
+          
+          // 显示错误提示和取消之前的成功提示
+          toast.error(error instanceof Error ? error.message : '删除商品失败');
+        }
+      },
+      
+      clearCart: async () => {
+        // 保存当前状态用于可能的回滚
+        const currentItems = [...get().items];
+        const currentTotalAmount = get().totalAmount;
+        const currentSelectedTotalAmount = get().selectedTotalAmount;
+        const currentItemCount = get().itemCount;
+        
+        try {
+          // 乐观更新：立即更新前端状态
+          set({ 
+            items: [], 
+            totalAmount: 0,
+            selectedTotalAmount: 0,
+            itemCount: 0
+          });
+          
+          // 显示成功提示（乐观更新）
+          toast.success('购物车已清空');
+          
+          // 发送API请求
+          const response = await fetch('/api/cart', {
+            method: 'DELETE',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '清空购物车失败');
+          }
+          
+          // API请求成功，不需要额外操作
+          await response.json();
+          
+        } catch (error) {
+          console.error('清空购物车失败:', error);
+          
+          // API请求失败，回滚到之前的状态
+          set((state) => ({
+            ...state,
+            items: currentItems,
+            totalAmount: currentTotalAmount,
+            selectedTotalAmount: currentSelectedTotalAmount,
+            itemCount: currentItemCount,
+            error: error instanceof Error ? error.message : '清空购物车失败'
+          }));
+          
+          // 显示错误提示
+          toast.error(error instanceof Error ? error.message : '清空购物车失败');
+        }
+      },
+      
+      // 本地计算函数（用于备份，通常使用从服务器获取的数据）
       getItemCount: () => {
         return get().items.reduce((count, item) => count + item.quantity, 0);
       },
@@ -85,21 +476,23 @@ export const useCartStore = create<CartStore>()(
         );
       },
       
-      getTotalOriginalPrice: () => {
-        return get().items.reduce(
-          (total, item) => {
-            // 使用 originalPrice（如果存在且不为null），否则使用 price
-            const priceToUse = item.originalPrice !== undefined && item.originalPrice !== null 
-              ? item.originalPrice 
-              : item.price;
-            return safeAdd(total, safeMultiply(priceToUse, item.quantity));
-          }, 
-          0
-        );
+      getSelectedTotalPrice: () => {
+        return get().items
+          .filter(item => item.selected)
+          .reduce(
+            (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+            0
+          );
       },
     }),
     {
       name: 'cart-storage', // localStorage的键名
+      partialize: (state) => ({
+        items: state.items,
+        totalAmount: state.totalAmount,
+        selectedTotalAmount: state.selectedTotalAmount,
+        itemCount: state.itemCount,
+      }),
     }
   )
 ); 

@@ -10,7 +10,11 @@ import {
   MinusCircle,
   ChevronLeft,
   BadgePercent,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  ShoppingBag,
+  Check,
+  ArrowRight
 } from "lucide-react";
 import { useCartStore } from "@/lib/store/cart-store";
 import { Button } from "@/components/ui/button";
@@ -25,40 +29,100 @@ import {
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { formatPrice, safeMultiply, safeSubtract } from "@/lib/utils/format";
+import { Checkbox } from "@/components/ui/checkbox";
+import { formatPrice } from "@/lib/utils/format";
 import { useRouter } from "next/navigation";
-// Import CartItem type if not already implicitly available via store
-import type { CartItem } from "@/lib/store/cart-store"; 
+import { toast } from "sonner";
+import type { CartItem } from "@/lib/store/cart-store";
 
 export default function CartPage() {
   const router = useRouter();
-  // From Zustand store
+
+  // 从Zustand store获取状态和方法
   const {
     items,
+    loading,
+    error,
+    totalAmount,
+    selectedTotalAmount,
+    itemCount,
+    fetchCart,
     removeItem,
     updateQuantity,
-    clearCart,
-    getTotalPrice,
-    getTotalOriginalPrice 
+    updateSelected,
+    updateBatchSelected,
+    clearCart
   } = useCartStore();
   
   const [mounted, setMounted] = useState(false);
   
+  // 用于全选/全不选的状态
+  const [allSelected, setAllSelected] = useState(false);
+  
+  // 初始加载时获取购物车数据
   useEffect(() => {
+    fetchCart();
     setMounted(true);
-  }, []);
+  }, [fetchCart]);
   
-  // Get calculated totals directly from the store *after* component mounts
-  const finalPrice = mounted ? getTotalPrice() : 0;
-  const originalPrice = mounted ? getTotalOriginalPrice() : 0;
+  // 更新全选状态
+  useEffect(() => {
+    if (items.length > 0) {
+      setAllSelected(items.every(item => item.selected));
+    } else {
+      setAllSelected(false);
+    }
+  }, [items]);
   
-  // Calculate discount based on store totals
-  // Use safeSubtract to handle potential precision issues, though less likely here
-  const discountAmount = mounted ? safeSubtract(originalPrice, finalPrice) : 0; 
-  const hasDiscount = discountAmount > 0;
+  // 处理全选/全不选
+  const handleSelectAll = async () => {
+    if (!items.length) return;
+    
+    const newSelectStatus = !allSelected;
+    setAllSelected(newSelectStatus);
+    
+    const itemIds = items.map(item => item.id);
+    await updateBatchSelected(itemIds, newSelectStatus);
+  };
   
-  // Empty cart display
-  if (mounted && items.length === 0) {
+  // 处理清空购物车
+  const handleClearCart = async () => {
+    if (window.confirm("确定要清空购物车吗？")) {
+      await clearCart();
+    }
+  };
+  
+  // 处理删除商品
+  const handleRemoveItem = async (itemId: string) => {
+    await removeItem(itemId);
+  };
+  
+  // 处理更新数量
+  const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    await updateQuantity(itemId, newQuantity);
+  };
+  
+  // 处理更新选中状态
+  const handleUpdateSelected = async (itemId: string, selected: boolean) => {
+    await updateSelected(itemId, selected);
+  };
+  
+  // 处理结算
+  const handleCheckout = () => {
+    const hasSelectedItems = items.some(item => item.selected);
+    
+    if (!hasSelectedItems) {
+      toast.error("请至少选择一个商品");
+      return;
+    }
+    
+    // 跳转到结算页面
+    router.push('/checkout');
+  };
+  
+  // 空购物车显示
+  if (mounted && !loading && items.length === 0) {
     return (
       <div className="container mx-auto py-10">
         <div className="mb-6">
@@ -84,7 +148,45 @@ export default function CartPage() {
     );
   }
   
-  // Main cart display
+  // 加载状态显示
+  if (!mounted || loading) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="mb-4 h-16 w-16 animate-spin text-primary" />
+          <h2 className="mb-2 text-2xl font-semibold">加载购物车...</h2>
+        </div>
+      </div>
+    );
+  }
+  
+  // 错误状态显示
+  if (error) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="mb-6">
+          <Link href="/products">
+            <Button variant="ghost" className="flex items-center gap-1">
+              <ChevronLeft className="h-4 w-4" />
+              继续购物
+            </Button>
+          </Link>
+        </div>
+        
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>获取购物车失败</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        
+        <div className="flex justify-center">
+          <Button onClick={() => fetchCart()}>重试</Button>
+        </div>
+      </div>
+    );
+  }
+  
+  // 主购物车显示
   return (
     <div className="container mx-auto py-10">
       <div className="mb-6">
@@ -99,21 +201,29 @@ export default function CartPage() {
       <h1 className="mb-6 text-3xl font-bold">购物车</h1>
       
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Item List */}
+        {/* 商品列表 */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="px-6 py-4">
               <div className="flex items-center justify-between">
-                <CardTitle>商品清单</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="select-all"
+                    checked={allSelected}
+                    onCheckedChange={handleSelectAll}
+                    disabled={items.length === 0}
+                  />
+                  <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                    全选
+                  </label>
+                  <CardTitle className="ml-4">商品清单</CardTitle>
+                </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => {
-                    if (window.confirm("确定要清空购物车吗？")) {
-                      clearCart();
-                    }
-                  }}
+                  onClick={handleClearCart}
                   className="text-destructive hover:text-destructive"
+                  disabled={items.length === 0}
                 >
                   清空购物车
                 </Button>
@@ -123,6 +233,7 @@ export default function CartPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead className="w-[350px]">商品</TableHead>
                     <TableHead className="text-center">单价</TableHead>
                     <TableHead className="text-center">数量</TableHead>
@@ -131,16 +242,22 @@ export default function CartPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Only render items when component is mounted */}
-                  {mounted && items.map((item: CartItem) => ( 
+                  {items.map((item: CartItem) => ( 
                     <TableRow key={item.id}>
-                      {/* Product Info */}
+                      {/* 选择框 */}
+                      <TableCell>
+                        <Checkbox
+                          checked={item.selected}
+                          onCheckedChange={(checked) => handleUpdateSelected(item.id, !!checked)}
+                        />
+                      </TableCell>
+                      {/* 商品信息 */}
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-4">
                           <div className="h-20 w-20 overflow-hidden rounded-md border">
                             <Image
-                              src={item.image || '/placeholder.svg'} // Add placeholder
-                              alt={item.name || '商品图片'} // Add placeholder text
+                              src={item.image || '/placeholder.svg'}
+                              alt={item.name || '商品图片'}
                               width={80}
                               height={80}
                               className="h-full w-full object-cover"
@@ -148,21 +265,18 @@ export default function CartPage() {
                           </div>
                           <div>
                             <Link 
-                              href={`/products/${item.id}`}
+                              href={`/products/${item.productId}`}
                               className="font-medium hover:underline"
                             >
                               {item.name || '未知商品'} 
                             </Link>
-                            {/* Optionally display SKU or other identifiers here */}
                           </div>
                         </div>
                       </TableCell>
-                      {/* Unit Price */}
+                      {/* 单价 */}
                       <TableCell className="text-center">
                         <div className="space-y-1">
-                          {/* Use robust formatPrice */}
                           <div className="font-medium">¥{formatPrice(item.price)}</div> 
-                          {/* Check originalPrice exists and is greater before displaying */}
                           {item.originalPrice && item.originalPrice > item.price && ( 
                             <div className="text-sm text-muted-foreground line-through">
                               ¥{formatPrice(item.originalPrice)}
@@ -170,30 +284,27 @@ export default function CartPage() {
                           )}
                         </div>
                       </TableCell>
-                      {/* Quantity */}
+                      {/* 数量 */}
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center">
                           <Button
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 rounded-full"
-                            // Ensure quantity doesn't go below 0 via UI interaction if desired
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)} 
-                            disabled={item.quantity <= 0} // Disable minus if 0
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                            disabled={item.quantity <= 1}
                           >
                             <MinusCircle className="h-4 w-4" />
                           </Button>
                           <span className="mx-2 w-10 text-center">
-                            {/* Display quantity directly, even if 0 */}
-                            {item.quantity} 
+                            {item.quantity}
                           </span>
                           <Button
                             variant="outline"
                             size="icon"
                             className="h-8 w-8 rounded-full"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            // Disable plus if quantity reaches stock
-                            disabled={item.quantity >= item.stock} 
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                            disabled={item.quantity >= item.stock}
                           >
                             <PlusCircle className="h-4 w-4" />
                           </Button>
@@ -204,18 +315,17 @@ export default function CartPage() {
                           </div>
                         )}
                       </TableCell>
-                      {/* Subtotal */}
+                      {/* 小计 */}
                       <TableCell className="text-right">
-                        {/* Use robust safeMultiply and formatPrice */}
-                        ¥{formatPrice(safeMultiply(item.price, item.quantity))} 
+                        ¥{formatPrice(item.subtotal)}
                       </TableCell>
-                      {/* Remove Button */}
+                      {/* 删除按钮 */}
                       <TableCell>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="text-muted-foreground hover:text-destructive"
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => handleRemoveItem(item.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -228,81 +338,88 @@ export default function CartPage() {
           </Card>
         </div>
         
-        {/* Order Summary */}
-        {mounted && ( // Only render summary when mounted and totals are reliable
-          <div>
+        {/* 订单摘要 */}
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>订单摘要</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* 商品总额 */}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">商品总额</span>
+                <span>¥{formatPrice(totalAmount)}</span>
+              </div>
+              
+              {/* 已选商品总额 */}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">已选商品总额</span>
+                <span>¥{formatPrice(selectedTotalAmount)}</span>
+              </div>
+              
+              {/* 已选商品数量 */}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">已选商品数量</span>
+                <span>{items.filter(item => item.selected).reduce((sum, item) => sum + item.quantity, 0)} 件</span>
+              </div>
+              
+              <Separator />
+              
+              {/* 合计 */}
+              <div className="flex justify-between text-lg font-bold">
+                <span>合计</span>
+                <span className="text-primary">¥{formatPrice(selectedTotalAmount)}</span>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                className="w-full"
+                size="lg"
+                onClick={handleCheckout}
+                disabled={!items.some(item => item.selected)}
+              >
+                <ShoppingBag className="mr-2 h-4 w-4" />
+                结算 ({items.filter(item => item.selected).length} 种商品)
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          {/* 优惠信息 */}
+          <div className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>订单摘要</CardTitle>
+              <CardHeader className="py-3">
+                <CardTitle className="text-base">优惠信息</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Original Price */}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">商品总额</span>
-                  {/* Use store total + robust formatPrice */}
-                  <span>¥{formatPrice(originalPrice)}</span> 
+              <CardContent className="py-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <BadgePercent className="h-4 w-4 text-primary" />
+                  <span>满99元包邮</span>
                 </div>
-                
-                {/* Discount */}
-                {hasDiscount && (
-                  <div className="flex justify-between text-green-600">
-                    <span className="flex items-center gap-1">
-                      <BadgePercent className="h-4 w-4" />
-                      商品折扣
-                    </span>
-                    {/* Use calculated discount + robust formatPrice */}
-                    <span>-¥{formatPrice(discountAmount)}</span> 
-                  </div>
-                )}
-                
-                <Separator />
-                
-                {/* Final Price */}
-                <div className="flex justify-between font-medium">
-                  <span>应付金额</span>
-                   {/* Use store total + robust formatPrice */}
-                  <span className="text-xl text-primary">¥{formatPrice(finalPrice)}</span>
-                </div>
-                
-                {/* Coupon Area (Placeholder) */}
-                <div className="mt-4 rounded-lg border p-4">
-                  <h3 className="mb-2 font-medium">使用优惠券</h3>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" className="flex-1" disabled>选择优惠券</Button> 
-                  </div>
+                <div className="flex items-center gap-2 mt-2 text-sm">
+                  <Check className="h-4 w-4 text-primary" />
+                  <span>新用户首单享9折</span>
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button 
-                  className="w-full"
-                  size="lg"
-                  onClick={() => {
-                    router.push("/checkout");
-                  }}
-                  // Disable checkout if cart is empty or has issues?
-                  disabled={items.length === 0} 
-                >
-                  去结算
-                </Button>
-              </CardFooter>
             </Card>
-            
-            {/* Shipping Alert */}
-            <Alert className="mt-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>配送提示</AlertTitle>
-              <AlertDescription>
-                订单满99元可享受免费配送，当前订单金额：¥{formatPrice(finalPrice)}
-                {finalPrice < 99 && (
-                  <span className="block mt-1">
-                    {/* Use robust safeSubtract and formatPrice */}
-                    还差¥{formatPrice(safeSubtract(99, finalPrice))}可享受免费配送 
-                  </span>
-                )}
-              </AlertDescription>
-            </Alert>
           </div>
-        )}
+          
+          {/* 猜你喜欢 */}
+          <div className="mt-4">
+            <Card>
+              <CardHeader className="py-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">猜你喜欢</CardTitle>
+                  <Link href="/products" className="text-sm text-primary hover:underline flex items-center">
+                    查看更多 <ArrowRight className="ml-1 h-3 w-3" />
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="py-2">
+                <p className="text-sm text-muted-foreground">根据您的购物喜好推荐更多优质商品</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

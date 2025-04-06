@@ -16,8 +16,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // 获取当前用户会话
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -135,8 +134,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // 获取当前用户会话
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();

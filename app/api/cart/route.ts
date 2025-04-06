@@ -11,10 +11,10 @@ import { Database } from '@/types/supabase';
  * - 所有商品的总价
  * - 选中商品的总价
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+    // 使用createServerComponentClient，不需要await cookies()
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // 获取当前用户会话
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -30,8 +30,11 @@ export async function GET(request: NextRequest) {
     
     const userId = session.user.id;
     
-    // 获取或创建购物车
-    let { data: cart, error: cartError } = await supabase
+    // 获取或创建购物车 - 使用any类型绕过类型检查
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+    
+    const { data: cart, error: cartError } = await supabaseAny
       .from('carts')
       .select('id')
       .eq('user_id', userId)
@@ -43,8 +46,9 @@ export async function GET(request: NextRequest) {
     }
     
     // 如果购物车不存在，则创建一个
+    let cartId = cart?.id;
     if (!cart) {
-      const { data: newCart, error: createError } = await supabase
+      const { data: newCart, error: createError } = await supabaseAny
         .from('carts')
         .insert([{ user_id: userId }])
         .select('id')
@@ -55,11 +59,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "创建购物车失败" }, { status: 500 });
       }
       
-      cart = newCart;
+      cartId = newCart.id;
     }
     
-    // 获取购物车中的所有商品
-    const { data: cartItems, error: itemsError } = await supabase
+    // 获取购物车中的所有商品 - 使用小写字段名修复数据库列名不匹配问题
+    const { data: cartItems, error: itemsError } = await supabaseAny
       .from('cart_items')
       .select(`
         id,
@@ -69,12 +73,12 @@ export async function GET(request: NextRequest) {
           id,
           name,
           price,
-          originalPrice,
+          originalprice,
           stock,
           images
         )
       `)
-      .eq('cart_id', cart.id);
+      .eq('cart_id', cartId);
     
     if (itemsError) {
       console.error('获取购物车商品失败:', itemsError);
@@ -82,12 +86,13 @@ export async function GET(request: NextRequest) {
     }
     
     // 处理返回的数据格式
-    const items = cartItems.map(item => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = cartItems.map((item: any) => ({
       id: item.id,
       productId: item.products.id,
       name: item.products.name,
       price: Number(item.products.price),
-      originalPrice: item.products.originalPrice ? Number(item.products.originalPrice) : undefined,
+      originalPrice: item.products.originalprice ? Number(item.products.originalprice) : undefined,
       image: item.products.images && item.products.images.length > 0 ? item.products.images[0] : null,
       quantity: item.quantity,
       stock: item.products.stock,
@@ -96,15 +101,15 @@ export async function GET(request: NextRequest) {
     }));
     
     // 计算总金额
-    const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const totalAmount = items.reduce((sum: number, item: any) => sum + item.subtotal, 0);
     
     // 计算选中商品的总金额
     const selectedTotalAmount = items
-      .filter(item => item.selected)
-      .reduce((sum, item) => sum + item.subtotal, 0);
+      .filter((item: any) => item.selected)
+      .reduce((sum: number, item: any) => sum + item.subtotal, 0);
     
     return NextResponse.json({
-      id: cart.id,
+      id: cartId,
       items,
       totalAmount,
       selectedTotalAmount,
@@ -124,10 +129,10 @@ export async function GET(request: NextRequest) {
  * DELETE: 清空当前用户的购物车
  * 删除购物车中的所有商品
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+    // 使用createServerComponentClient，不需要await cookies()
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // 获取当前用户会话
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -138,8 +143,12 @@ export async function DELETE(request: NextRequest) {
     
     const userId = session.user.id;
     
+    // 使用any类型绕过类型检查
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+    
     // 获取用户的购物车
-    const { data: cart, error: cartError } = await supabase
+    const { data: cart, error: cartError } = await supabaseAny
       .from('carts')
       .select('id')
       .eq('user_id', userId)
@@ -151,7 +160,7 @@ export async function DELETE(request: NextRequest) {
     }
     
     // 删除购物车中的所有商品
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAny
       .from('cart_items')
       .delete()
       .eq('cart_id', cart.id);

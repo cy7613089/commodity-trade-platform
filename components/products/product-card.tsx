@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/lib/store/cart-store";
 import { toast } from "sonner";
-import { PlusCircle, MinusCircle, ShoppingCart } from "lucide-react";
+import { PlusCircle, MinusCircle, ShoppingCart, Loader2 } from "lucide-react";
 import { formatPrice, safeSubtract, safeDivide, safeMultiply } from "@/lib/utils/format";
 
 export interface Product {
@@ -38,6 +38,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
   };
 
   const [quantity, setQuantity] = useState(1);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const addItemToCart = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     }
   }, [product.stock, product.id, product.name]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     const currentStock = productWithStock.stock;
     
     if (quantity > currentStock) {
@@ -59,17 +60,27 @@ export function ProductCard({ product, className }: ProductCardProps) {
       return;
     }
 
-    addItemToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      originalPrice: product.originalPrice,
-      image: product.image,
-      quantity: quantity,
-      stock: currentStock,
-    });
-    toast.success(`${product.name} (${quantity}件) 已添加到购物车`);
-    setQuantity(1);
+    setIsAddingToCart(true);
+    
+    try {
+      await addItemToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        image: product.image,
+        quantity: quantity,
+        stock: currentStock,
+      });
+      
+      // 成功后重置数量（toast已在store中处理）
+      setQuantity(1);
+    } catch (error) {
+      // 错误已在store中处理
+      console.error("添加到购物车失败:", error);
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
   const incrementQuantity = () => {
@@ -170,7 +181,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
               size="icon"
               className="h-7 w-7"
               onClick={decrementQuantity}
-              disabled={quantity <= 1}
+              disabled={quantity <= 1 || isAddingToCart}
             >
               <MinusCircle className="h-4 w-4" />
             </Button>
@@ -182,7 +193,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
               size="icon"
               className="h-7 w-7"
               onClick={incrementQuantity}
-              disabled={currentStock <= 0 || quantity >= currentStock}
+              disabled={currentStock <= 0 || quantity >= currentStock || isAddingToCart}
             >
               <PlusCircle className="h-4 w-4" />
             </Button>
@@ -191,10 +202,19 @@ export function ProductCard({ product, className }: ProductCardProps) {
         <Button
           className="w-full"
           onClick={handleAddToCart}
-          disabled={currentStock <= 0}
+          disabled={currentStock <= 0 || isAddingToCart}
         >
-          <ShoppingCart className="mr-2 h-4 w-4" />
-          {currentStock <= 0 ? "已售罄" : "加入购物车"}
+          {isAddingToCart ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              添加中...
+            </>
+          ) : (
+            <>
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              {currentStock <= 0 ? "已售罄" : "加入购物车"}
+            </>
+          )}
         </Button>
       </CardFooter>
     </Card>

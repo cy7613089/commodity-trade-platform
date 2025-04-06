@@ -13,8 +13,7 @@ import { Database } from '@/types/supabase';
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+    const supabase = createServerComponentClient<Database>({ cookies });
     
     // 获取当前用户会话
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
