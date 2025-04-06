@@ -113,7 +113,6 @@
 - `/api/products`：获取商品列表，支持分页、排序和筛选
 - `/api/products/[id]`：获取单个商品详细信息
 - `/api/products/search`：商品搜索API，支持关键词、分类、价格区间等筛选
-- `/api/products/categories`：获取商品分类数据
 - 使用Next.js的Server Actions实现数据获取和缓存
 - 使用Supabase数据库存储和查询商品数据
 
@@ -364,7 +363,6 @@ export async function signOut() {
 - price: decimal(10,2) NOT NULL (商品价格)
 - originalPrice: decimal(10,2) (原价，用于显示折扣)
 - stock: integer NOT NULL (库存数量)
-- category_id: uuid REFERENCES categories(id) (商品分类ID)
 - images: jsonb (商品图片路径数组 ['url1', 'url2', ...])
 - specs: jsonb (商品规格参数，JSON格式)
 - rating: numeric(2,1) DEFAULT 0 (商品评分，1-5分)
@@ -373,20 +371,6 @@ export async function signOut() {
 - status: text DEFAULT 'active' (商品状态：active/inactive)
 - created_at: timestamptz DEFAULT now() (创建时间)
 - updated_at: timestamptz DEFAULT now() (更新时间)
-```
-
-##### categories 表（分类表）
-```
-商品分类表
-- id: uuid PRIMARY KEY
-- name: text NOT NULL (分类名称)
-- slug: text UNIQUE NOT NULL (URL友好的分类标识)
-- description: text (分类描述)
-- parent_id: uuid REFERENCES categories(id) (父分类ID，支持多级分类)
-- image: text (分类图片路径)
-- count: integer DEFAULT 0 (分类下商品数量)
-- created_at: timestamptz DEFAULT now()
-- updated_at: timestamptz DEFAULT now()
 ```
 
 ##### users 表（用户表）
@@ -488,7 +472,7 @@ export async function signOut() {
 优惠券详细规则表
 - id: uuid PRIMARY KEY
 - coupon_id: uuid REFERENCES coupons(id) ON DELETE CASCADE (优惠券ID)
-- rule_type: text NOT NULL (规则类型：product/category/time/amount/combination)
+- rule_type: text NOT NULL (规则类型：product/time/amount/combination)
 - rule_value: jsonb NOT NULL (具体规则值，JSON格式)
 - priority: integer DEFAULT 0 (规则优先级)
 - created_at: timestamptz DEFAULT now()
@@ -553,8 +537,6 @@ export async function signOut() {
   - 用户与订单：一个用户可以有多个订单
   - 用户与地址：一个用户可以有多个收货地址
   - 订单与订单项：一个订单包含多个订单项
-  - 分类与商品：一个分类可以包含多个商品
-  - 分类与子分类：一个分类可以有多个子分类（自引用关系）
 
 - **多对多关系**：
   - 用户与优惠券：通过user_coupons表连接
@@ -563,15 +545,10 @@ export async function signOut() {
 ##### 索引设计
 ```
 -- 商品表索引
-CREATE INDEX idx_products_category ON products(category_id);
 CREATE INDEX idx_products_status ON products(status);
 CREATE INDEX idx_products_price ON products(price);
 CREATE INDEX idx_products_created_at ON products(created_at);
 CREATE INDEX idx_products_is_featured ON products(is_featured);
-
--- 分类表索引
-CREATE INDEX idx_categories_parent ON categories(parent_id);
-CREATE INDEX idx_categories_slug ON categories(slug);
 
 -- 订单表索引
 CREATE INDEX idx_orders_user ON orders(user_id);
@@ -634,8 +611,7 @@ CREATE POLICY "管理员可以查看和修改所有订单" ON orders
 {
   "paths": [
     { "path": "/api/products", "interval": 86400 },    // 24小时
-    { "path": "/api/products/featured", "interval": 21600 },  // 6小时
-    { "path": "/api/categories", "interval": 86400 }   // 24小时
+    { "path": "/api/products/featured", "interval": 21600 }  // 6小时
   ]
 }
 ```
@@ -929,8 +905,6 @@ Server Actions:
 ├── instruction.md            # 项目说明与规划文档
 ├── lib                       # 工具库与核心逻辑
 │   ├── auth.ts               # 认证相关工具函数
-│   ├── data
-│   │   └── categories.ts     # 静态或种子分类数据
 │   ├── db.ts                 # Supabase客户端配置
 │   ├── hooks
 │   │   └── use-debounce.ts   # 防抖 Hook

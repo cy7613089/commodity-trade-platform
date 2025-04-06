@@ -1,73 +1,130 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProductGrid } from "@/components/products/product-grid";
 import { ProductFilter, ProductFilters } from "@/components/products/product-filter";
 import { ProductPagination } from "@/components/products/product-pagination";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Inbox, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, Inbox, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-
-// 模拟数据 - 实际项目中会从数据库获取
-const mockCategories = [
-  { id: "1", name: "电子产品", count: 120 },
-  { id: "2", name: "家居生活", count: 85 },
-  { id: "3", name: "服装鞋帽", count: 207 },
-  { id: "4", name: "美妆个护", count: 163 },
-  { id: "5", name: "食品饮料", count: 94 },
-];
-
-const mockBrands = [
-  { id: "1", name: "苹果", count: 42 },
-  { id: "2", name: "小米", count: 38 },
-  { id: "3", name: "华为", count: 35 },
-  { id: "4", name: "三星", count: 31 },
-  { id: "5", name: "索尼", count: 27 },
-];
-
-const mockPriceRanges = [
-  { min: 0, max: 100 },
-  { min: 100, max: 500 },
-  { min: 500, max: 1000 },
-  { min: 1000, max: 5000 },
-  { min: 5000, max: 10000 },
-];
-
-const mockRatings = [5, 4, 3, 2, 1];
-
-// 模拟商品数据
-const mockProducts = Array.from({ length: 30 }).map((_, index) => ({
-  id: `product-${index + 1}`,
-  name: `商品 ${index + 1}`,
-  description: `这是商品 ${index + 1} 的简要描述，包含了产品的主要特点和卖点。`,
-  price: Math.floor(Math.random() * 10000) / 100 + 99,
-  originalPrice: Math.random() > 0.5 ? Math.floor(Math.random() * 15000) / 100 + 199 : undefined,
-  image: `/next.svg`,
-  rating: Math.floor(Math.random() * 5) + 1,
-  category: mockCategories[Math.floor(Math.random() * mockCategories.length)].id,
-}));
+import { FormattedProduct } from "@/lib/utils/format";
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // 状态
+  const [products, setProducts] = useState<FormattedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // 解析查询参数
   const pageParam = searchParams.get("page");
   const page = pageParam ? Number(pageParam) : 1;
+  const searchQuery = searchParams.get("search") || '';
+  const minPrice = searchParams.get("minPrice") || '';
+  const maxPrice = searchParams.get("maxPrice") || '';
+  const sortBy = searchParams.get("sortBy") || 'created_at';
+  const order = searchParams.get("order") || 'desc';
   const pageSize = 10; // 每页显示10个商品
   
-  // 计算分页
-  const totalProducts = mockProducts.length;
-  const totalPages = Math.ceil(totalProducts / pageSize);
-  const currentPageProducts = mockProducts.slice((page - 1) * pageSize, page * pageSize);
+  // 初始加载和参数变化时加载数据
+  useEffect(() => {
+    fetchProducts();
+  }, [page, searchQuery, minPrice, maxPrice, sortBy, order]);
+  
+  // 获取商品列表
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+      });
+      
+      if (searchQuery) queryParams.append('search', searchQuery);
+      if (minPrice) queryParams.append('minPrice', minPrice);
+      if (maxPrice) queryParams.append('maxPrice', maxPrice);
+      if (sortBy) queryParams.append('sortBy', sortBy);
+      if (order) queryParams.append('order', order);
+      
+      // 发送请求
+      const response = await fetch(`/api/products?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error(`获取商品列表失败: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // 更新状态
+      setProducts(data.products || []);
+      setTotalProducts(data.pagination?.total || 0);
+      setTotalPages(data.pagination?.totalPages || 1);
+    } catch (err) {
+      console.error('获取商品列表错误:', err);
+      setError(err instanceof Error ? err.message : '获取商品列表失败');
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // 筛选器变化处理函数
   const handleFilterChange = (filters: ProductFilters) => {
-    // 在实际应用中，这将触发数据重新获取或过滤
-    console.log("应用筛选条件:", filters);
+    // 构建新的URL参数
+    const newParams = new URLSearchParams();
+    
+    if (filters.minPrice) newParams.append('minPrice', filters.minPrice.toString());
+    if (filters.maxPrice) newParams.append('maxPrice', filters.maxPrice.toString());
+    if (filters.rating) newParams.append('rating', filters.rating.toString());
+    if (searchTerm) newParams.append('search', searchTerm);
+    
+    // 重置页码
+    newParams.append('page', '1');
+    
+    // 导航到新URL
+    router.push(`/products?${newParams.toString()}`);
   };
+  
+  // 搜索处理函数
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const newParams = new URLSearchParams(searchParams.toString());
+    
+    if (searchTerm) {
+      newParams.set('search', searchTerm);
+    } else {
+      newParams.delete('search');
+    }
+    
+    // 重置页码
+    newParams.set('page', '1');
+    
+    // 导航到新URL
+    router.push(`/products?${newParams.toString()}`);
+  };
+  
+  // 价格范围
+  const mockPriceRanges = [
+    { min: 0, max: 100 },
+    { min: 100, max: 500 },
+    { min: 500, max: 1000 },
+    { min: 1000, max: 5000 },
+    { min: 5000, max: 10000 },
+  ];
+  
+  const mockRatings = [5, 4, 3, 2, 1];
   
   return (
     <div className="container mx-auto py-6">
@@ -78,18 +135,20 @@ export default function ProductsPage() {
         </div>
         
         <div className="justify-self-center col-span-1 w-full max-w-md px-4">
-          <div className="relative">
+          <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               placeholder="搜索商品..."
               className="pl-10 pr-4"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-          </div>
+          </form>
         </div>
         
         <div className="justify-self-end">
-          <Link href="/products">
+          <Link href="/">
             <Button variant="ghost" className="flex items-center gap-1">
               <ChevronLeft className="h-4 w-4" />
               返回首页
@@ -103,8 +162,6 @@ export default function ProductsPage() {
         <div className="hidden lg:block">
           <div className="sticky top-24">
             <ProductFilter
-              categories={mockCategories}
-              brands={mockBrands}
               priceRanges={mockPriceRanges}
               ratings={mockRatings}
               onFilterChange={handleFilterChange}
@@ -124,8 +181,6 @@ export default function ProductsPage() {
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <div className="py-4">
                 <ProductFilter
-                  categories={mockCategories}
-                  brands={mockBrands}
                   priceRanges={mockPriceRanges}
                   ratings={mockRatings}
                   onFilterChange={handleFilterChange}
@@ -138,9 +193,19 @@ export default function ProductsPage() {
         {/* 商品列表 */}
         <div className="lg:col-span-3">
           <Suspense fallback={<div>加载中...</div>}>
-            {currentPageProducts.length > 0 ? (
+            {loading ? (
+              <div className="flex h-[400px] flex-col items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="mt-4 text-lg text-muted-foreground">加载商品中...</p>
+              </div>
+            ) : error ? (
+              <div className="flex h-[400px] flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
+                <p className="text-red-500">{error}</p>
+                <Button onClick={fetchProducts} className="mt-4">重试</Button>
+              </div>
+            ) : products.length > 0 ? (
               <>
-                <ProductGrid products={currentPageProducts} columns={3} />
+                <ProductGrid products={products} columns={3} />
                 <div className="mt-8 flex justify-center">
                   <ProductPagination currentPage={page} totalPages={totalPages} />
                 </div>
@@ -150,7 +215,7 @@ export default function ProductsPage() {
                 <Inbox className="mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-semibold">没有找到商品</h3>
                 <p className="text-muted-foreground">
-                  尝试更改筛选条件或浏览其他分类
+                  尝试更改筛选条件或浏览其他产品
                 </p>
               </div>
             )}

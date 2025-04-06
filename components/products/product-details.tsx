@@ -7,34 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChevronLeft, Heart, MinusCircle, PlusCircle, Share2, ShoppingCart, Star, Truck } from "lucide-react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store/cart-store";
 import { toast } from "sonner";
 import { formatPrice, calculateDiscountPercentage } from "@/lib/utils/format";
+import { FormattedProduct } from "@/lib/utils/format";
+import { ProductCard } from "./product-card";
 
-// 产品类型定义
-export interface ProductType {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  images: string[];
-  rating: number;
-  reviewCount: number;
-  category: string;
-  brand: string;
-  stock: number;
-  specifications: { name: string; value: string }[];
-}
+// 产品类型定义 - 使用FormattedProduct类型
+export type ProductType = FormattedProduct;
 
-export function ProductDetails({ product }: { product: ProductType }) {
+export function ProductDetails({ 
+  product, 
+  relatedProducts = [] 
+}: { 
+  product: ProductType; 
+  relatedProducts?: ProductType[] 
+}) {
   const [quantity, setQuantity] = useState(1);
   const router = useRouter();
   const { addItem } = useCartStore();
+  
+  // 将规格数据转换为界面需要的格式
+  const specifications = product.specs ? 
+    Object.entries(product.specs).map(([name, value]) => ({ name, value: String(value) })) : 
+    [];
 
   const increaseQuantity = () => {
     if (quantity < product.stock) {
@@ -179,15 +177,28 @@ export function ProductDetails({ product }: { product: ProductType }) {
           
           {/* 操作按钮 */}
           <div className="mt-8 flex gap-4">
-            <Button size="lg" className="flex-1 gap-2" onClick={handleAddToCart}>
+            <Button 
+              size="lg" 
+              className="flex-1 gap-2" 
+              onClick={handleAddToCart}
+              disabled={product.stock <= 0}
+            >
               <ShoppingCart className="h-5 w-5" />
-              加入购物车
+              {product.stock <= 0 ? "已售罄" : "加入购物车"}
             </Button>
-            <Button size="lg" variant="secondary" className="flex-1 gap-2" onClick={() => {
-              handleAddToCart();
-              router.push("/cart");
-            }}>
-              立即购买
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="flex-1 gap-2" 
+              onClick={() => {
+                if (product.stock > 0) {
+                  handleAddToCart();
+                  router.push("/cart");
+                }
+              }}
+              disabled={product.stock <= 0}
+            >
+              {product.stock <= 0 ? "已售罄" : "立即购买"}
             </Button>
             <Button size="icon" variant="outline">
               <Heart className="h-5 w-5" />
@@ -247,15 +258,11 @@ export function ProductDetails({ product }: { product: ProductType }) {
             <div className="space-y-4">
               <h3 className="text-xl font-bold">规格参数</h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {product.specifications.map((spec, index) => (
-                  <Card key={index}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{spec.name}</span>
-                        <span>{spec.value}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                {specifications.map((spec, index) => (
+                  <div key={index} className="flex justify-between rounded-lg border p-3">
+                    <span className="font-medium">{spec.name}</span>
+                    <span className="text-muted-foreground">{spec.value}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -264,43 +271,23 @@ export function ProductDetails({ product }: { product: ProductType }) {
           <TabsContent value="reviews">
             <div className="space-y-4">
               <h3 className="text-xl font-bold">用户评价</h3>
-              <p className="text-muted-foreground">该商品共有 {product.reviewCount} 条评价</p>
-              
-              {/* 模拟评价内容 */}
-              <div className="mt-6 space-y-6">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="border-b pb-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-full bg-primary/10" />
-                        <div>
-                          <p className="font-medium">用户{index + 1}</p>
-                          <div className="flex">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-3 w-3 ${
-                                  i < Math.floor(Math.random() * 3) + 3 ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        2023-0{index + 1}-{10 + index}
-                      </span>
-                    </div>
-                    <p className="mt-2">
-                      商品质量不错，物流很快，包装也很好，很满意的一次购物体验。
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <p className="text-muted-foreground">暂无评价数据</p>
             </div>
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* 相关商品推荐 */}
+      {relatedProducts && relatedProducts.length > 0 && (
+        <div className="mt-16">
+          <h2 className="mb-6 text-2xl font-bold">相关推荐</h2>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {relatedProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

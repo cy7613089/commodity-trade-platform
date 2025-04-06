@@ -72,4 +72,63 @@ export function calculateSubtotal(price: number, quantity: number): number {
  */
 export function sumArray(arr: number[]): number {
   return arr.reduce((sum, value) => safeAdd(sum, value), 0);
+}
+
+/**
+ * 将数据库返回的商品数据格式化为前端所需格式
+ */
+interface DbProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  stock: number;
+  images?: string[] | null;
+  rating?: number;
+  reviewCount?: number;
+  is_featured?: boolean;
+  status?: string;
+  specs?: Record<string, any> | null;
+  [key: string]: any;
+}
+
+export interface FormattedProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  images: string[];
+  stock: number;
+  rating: number;
+  reviewCount: number;
+  specs?: Record<string, any>;
+  isFeatured: boolean;
+}
+
+export function formatProductResponse(product: DbProduct): FormattedProduct {
+  // 提取第一张图片作为主图
+  const imagesArray = Array.isArray(product.images) && product.images.length > 0 
+    ? product.images 
+    : ['/next.svg']; // 默认图片
+  
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.description || '',
+    price: product.price,
+    originalPrice: product.originalPrice,
+    image: imagesArray[0], // 主图
+    images: imagesArray,
+    stock: typeof product.stock === 'number' ? product.stock : 0,
+    rating: typeof product.rating === 'number' ? product.rating : 0,
+    reviewCount: typeof product.reviewCount === 'number' ? product.reviewCount : 0,
+    specs: product.specs || {},
+    isFeatured: product.is_featured || false
+  };
 } 
