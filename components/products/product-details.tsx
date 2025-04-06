@@ -28,7 +28,7 @@ export function ProductDetails({
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const router = useRouter();
-  const { addItem } = useCartStore();
+  const { addItem, updateNavbarCartCount } = useCartStore();
   
   // 将规格数据转换为界面需要的格式
   const specifications = product.specs ? 
@@ -53,9 +53,18 @@ export function ProductDetails({
       return;
     }
     
-    setIsAddingToCart(true);
+    // 记录原始购物车状态，以便出错时回滚
+    const originalItemCount = useCartStore.getState().itemCount;
     
     try {
+      // 乐观更新：立即显示成功提示
+      toast.success('商品已添加到购物车');
+      
+      // 乐观更新：立即更新购物车计数并更新UI
+      const newItemCount = originalItemCount + quantity;
+      updateNavbarCartCount(newItemCount);
+      
+      // 后台发送API请求
       await addItem({
         id: product.id,
         name: product.name,
@@ -65,13 +74,10 @@ export function ProductDetails({
         image: product.image,
         stock: product.stock,
       });
-      
-      // 成功消息已在store中处理
     } catch (error) {
-      // 错误已在store中处理
+      // 发生错误时回滚UI状态
+      updateNavbarCartCount(originalItemCount);
       console.error("添加到购物车失败:", error);
-    } finally {
-      setIsAddingToCart(false);
     }
   };
   
@@ -84,21 +90,32 @@ export function ProductDetails({
     setIsAddingToCart(true);
     
     try {
-      await addItem({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        originalPrice: product.originalPrice,
-        quantity: quantity,
-        image: product.image,
-        stock: product.stock,
-      });
+      // 记录原始购物车状态，以便出错时回滚
+      const originalItemCount = useCartStore.getState().itemCount;
       
-      // 添加成功后跳转到购物车页面
-      router.push("/cart");
-    } catch (error) {
-      // 错误已在store中处理
-      console.error("立即购买失败:", error);
+      try {
+        // 乐观更新：立即更新购物车计数并更新UI
+        const newItemCount = originalItemCount + quantity;
+        updateNavbarCartCount(newItemCount);
+        
+        // 后台发送API请求
+        await addItem({
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          originalPrice: product.originalPrice,
+          quantity: quantity,
+          image: product.image,
+          stock: product.stock,
+        });
+        
+        // 添加成功后跳转到购物车页面
+        router.push("/cart");
+      } catch (error) {
+        // 发生错误时回滚UI状态
+        updateNavbarCartCount(originalItemCount);
+        console.error("立即购买失败:", error);
+      }
     } finally {
       setIsAddingToCart(false);
     }
@@ -218,19 +235,10 @@ export function ProductDetails({
               size="lg" 
               className="flex-1 gap-2" 
               onClick={handleAddToCart}
-              disabled={product.stock <= 0 || isAddingToCart}
+              disabled={product.stock <= 0}
             >
-              {isAddingToCart ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  添加中...
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="h-5 w-5" />
-                  {product.stock <= 0 ? "已售罄" : "加入购物车"}
-                </>
-              )}
+              <ShoppingCart className="h-5 w-5" />
+              {product.stock <= 0 ? "已售罄" : "加入购物车"}
             </Button>
             <Button 
               size="lg" 
@@ -239,7 +247,14 @@ export function ProductDetails({
               onClick={handleBuyNow}
               disabled={product.stock <= 0 || isAddingToCart}
             >
-              {isAddingToCart ? "处理中..." : (product.stock <= 0 ? "已售罄" : "立即购买")}
+              {isAddingToCart ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  处理中...
+                </>
+              ) : (
+                product.stock <= 0 ? "已售罄" : "立即购买"
+              )}
             </Button>
             <Button size="icon" variant="outline">
               <Heart className="h-5 w-5" />

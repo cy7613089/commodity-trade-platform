@@ -62,6 +62,9 @@ interface CartStore extends CartState {
   
   // 同步购物车数据（用于用户登录后）
   syncCartAfterLogin: () => Promise<void>;
+  
+  // 立即更新购物车计数（用于UI乐观更新）
+  updateNavbarCartCount: (count: number) => void;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -143,11 +146,10 @@ export const useCartStore = create<CartStore>()(
           
           const result = await response.json();
           
-          // 添加成功后，重新获取购物车数据
+          // 添加成功后，重新获取购物车数据，但不显示Toast（组件中已经显示）
           await get().fetchCart();
           
-          // 显示成功提示
-          toast.success(result.message || '商品已添加到购物车');
+          return result;
         } catch (error) {
           console.error('添加到购物车失败:', error);
           set({ 
@@ -155,8 +157,8 @@ export const useCartStore = create<CartStore>()(
             error: error instanceof Error ? error.message : '添加到购物车失败' 
           });
           
-          // 显示错误提示
-          toast.error(error instanceof Error ? error.message : '添加到购物车失败');
+          // 将错误向上抛出，让组件处理
+          throw error;
         }
       },
       
@@ -554,6 +556,11 @@ export const useCartStore = create<CartStore>()(
             error: error instanceof Error ? error.message : '同步购物车失败' 
           });
         }
+      },
+      
+      // 立即更新购物车计数，用于乐观更新UI
+      updateNavbarCartCount: (count: number) => {
+        set({ itemCount: count });
       },
     }),
     {
