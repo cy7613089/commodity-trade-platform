@@ -23,6 +23,7 @@ import { AuthError } from '@supabase/supabase-js';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useUserStore } from '@/lib/store/user-store';
+import { useCartStore } from '@/lib/store/cart-store';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -43,6 +44,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { syncUserWithAuth } = useUserStore();
+  const { syncCartAfterLogin } = useCartStore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -73,6 +75,9 @@ export default function LoginPage() {
       
       // 登录成功后同步用户数据
       await syncUserWithAuth();
+      
+      // 登录成功后同步购物车数据
+      await syncCartAfterLogin();
 
       toast({
         title: '登录成功',

@@ -29,10 +29,20 @@ export function Navbar() {
   const { toast } = useToast();
   const { supabase } = useSupabase();
   
-  const itemCount = useCartStore((state) => state.getItemCount());
+  // 获取购物车状态和方法
+  const cartStore = useCartStore();
+  const clearCart = cartStore.clearCart;
+  const [itemCount, setItemCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // 监听购物车变化
+  useEffect(() => {
+    if (mounted) {
+      setItemCount(cartStore.getItemCount());
+    }
+  }, [cartStore, cartStore.items, cartStore.itemCount, mounted]);
 
   useEffect(() => {
     setMounted(true);
@@ -61,6 +71,13 @@ export function Navbar() {
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut();
+      
+      // 退出登录时清空购物车
+      await clearCart();
+      
+      // 强制更新购物车数量为0
+      setItemCount(0);
+      
       toast({
         title: "退出成功",
         description: "您已成功退出登录",

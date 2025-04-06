@@ -59,6 +59,9 @@ interface CartStore extends CartState {
   getItemCount: () => number;
   getTotalPrice: () => number;
   getSelectedTotalPrice: () => number;
+  
+  // 同步购物车数据（用于用户登录后）
+  syncCartAfterLogin: () => Promise<void>;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -96,12 +99,18 @@ export const useCartStore = create<CartStore>()(
           
           const cartData = await response.json();
           
+          // 计算商品总数量而非商品种类数量
+          const totalItemCount = (cartData.items || []).reduce(
+            (count: number, item: CartItem) => count + item.quantity, 
+            0
+          );
+          
           set({ 
             items: cartData.items || [], 
             loading: false,
             totalAmount: cartData.totalAmount || 0,
             selectedTotalAmount: cartData.selectedTotalAmount || 0,
-            itemCount: cartData.itemCount || 0
+            itemCount: totalItemCount
           });
         } catch (error) {
           console.error('获取购物车失败:', error);
@@ -182,11 +191,17 @@ export const useCartStore = create<CartStore>()(
                 0
               );
             
+            // 计算商品总数量，而不是商品种类数量
+            const totalItemCount = updatedItems.reduce(
+              (count, item) => count + item.quantity, 
+              0
+            );
+            
             return {
               items: updatedItems,
               totalAmount,
               selectedTotalAmount,
-              itemCount: updatedItems.length
+              itemCount: totalItemCount
             };
           });
           
@@ -372,11 +387,17 @@ export const useCartStore = create<CartStore>()(
                 0
               );
             
+            // 计算商品总数量，而不是商品种类数量
+            const totalItemCount = updatedItems.reduce(
+              (count, item) => count + item.quantity, 
+              0
+            );
+            
             return {
               items: updatedItems,
               totalAmount,
               selectedTotalAmount,
-              itemCount: updatedItems.length
+              itemCount: totalItemCount
             };
           });
           
@@ -483,6 +504,56 @@ export const useCartStore = create<CartStore>()(
             (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
             0
           );
+      },
+      
+      // 同步购物车数据（用于用户登录后）
+      syncCartAfterLogin: async () => {
+        try {
+          // 设置loading状态但不显示错误
+          set({ loading: true, error: null });
+          
+          // 获取服务器端的购物车数据
+          const response = await fetch('/api/cart');
+          
+          // 如果发生401错误（未授权），说明用户未登录
+          if (response.status === 401) {
+            set({ 
+              loading: false,
+              error: null 
+            });
+            return;
+          }
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '同步购物车失败');
+          }
+          
+          const cartData = await response.json();
+          
+          // 计算商品总数量而非商品种类数量
+          const totalItemCount = (cartData.items || []).reduce(
+            (count: number, item: CartItem) => count + item.quantity, 
+            0
+          );
+          
+          // 更新本地购物车状态
+          set({ 
+            items: cartData.items || [], 
+            loading: false,
+            totalAmount: cartData.totalAmount || 0,
+            selectedTotalAmount: cartData.selectedTotalAmount || 0,
+            itemCount: totalItemCount
+          });
+          
+          console.log('用户登录后成功同步购物车数据');
+        } catch (error) {
+          console.error('同步购物车失败:', error);
+          set({ 
+            loading: false,
+            error: error instanceof Error ? error.message : '同步购物车失败' 
+          });
+        }
       },
     }),
     {
