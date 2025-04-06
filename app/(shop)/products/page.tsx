@@ -2,12 +2,11 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { ProductGrid } from "@/components/products/product-grid";
 import { ProductFilter, ProductFilters } from "@/components/products/product-filter";
 import { ProductPagination } from "@/components/products/product-pagination";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Inbox, Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { Inbox, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { FormattedProduct } from "@/lib/utils/format";
@@ -128,13 +127,13 @@ export default function ProductsPage() {
   
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-6 grid grid-cols-3 items-center">
+      <div className="mb-6 grid grid-cols-2 items-center">
         <div>
           <h1 className="text-3xl font-bold">全部商品</h1>
           <p className="text-muted-foreground">共 {totalProducts} 件商品</p>
         </div>
         
-        <div className="justify-self-center col-span-1 w-full max-w-md px-4">
+        <div className="justify-self-end w-full max-w-md px-4">
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -145,15 +144,6 @@ export default function ProductsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </form>
-        </div>
-        
-        <div className="justify-self-end">
-          <Link href="/">
-            <Button variant="ghost" className="flex items-center gap-1">
-              <ChevronLeft className="h-4 w-4" />
-              返回首页
-            </Button>
-          </Link>
         </div>
       </div>
       
