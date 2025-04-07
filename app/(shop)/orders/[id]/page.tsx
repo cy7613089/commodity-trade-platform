@@ -23,6 +23,15 @@ const ORDER_STATUS = {
   CANCELLED: 'CANCELLED'
 } as const;
 
+// 订单状态中文映射
+const ORDER_STATUS_CN = {
+  [ORDER_STATUS.PENDING_PAYMENT]: '待付款',
+  [ORDER_STATUS.PENDING_SHIPMENT]: '待发货',
+  [ORDER_STATUS.SHIPPED]: '已发货',
+  [ORDER_STATUS.COMPLETED]: '已完成',
+  [ORDER_STATUS.CANCELLED]: '已取消'
+} as const;
+
 export default function OrderDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { 
@@ -218,7 +227,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                     className={`${getStatusColor(currentOrder.status)} flex items-center gap-1 px-3 py-1.5`}
                   >
                     {getStatusIcon(currentOrder.status)}
-                    <span className="ml-1">{currentOrder.status}</span>
+                    <span className="ml-1">{ORDER_STATUS_CN[currentOrder.status as keyof typeof ORDER_STATUS_CN]}</span>
                   </Badge>
                 </div>
                 
@@ -237,7 +246,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">订单状态</p>
-                    <p className="font-medium">{currentOrder.status}</p>
+                    <p className="font-medium">{ORDER_STATUS_CN[currentOrder.status as keyof typeof ORDER_STATUS_CN]}</p>
                   </div>
                 </div>
                 

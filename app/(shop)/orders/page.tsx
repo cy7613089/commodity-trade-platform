@@ -24,6 +24,15 @@ const ORDER_STATUS = {
   CANCELLED: 'CANCELLED'
 } as const;
 
+// 订单状态中文映射
+const ORDER_STATUS_CN = {
+  [ORDER_STATUS.PENDING_PAYMENT]: '待付款',
+  [ORDER_STATUS.PENDING_SHIPMENT]: '待发货',
+  [ORDER_STATUS.SHIPPED]: '已发货',
+  [ORDER_STATUS.COMPLETED]: '已完成',
+  [ORDER_STATUS.CANCELLED]: '已取消'
+} as const;
+
 export default function OrdersPage() {
   const router = useRouter();
   const { 
@@ -158,7 +167,7 @@ export default function OrdersPage() {
               className={`${getStatusColor(order.status)} flex items-center gap-1 px-2 py-1`}
             >
               {getStatusIcon(order.status)}
-              {order.status}
+              {ORDER_STATUS_CN[order.status as keyof typeof ORDER_STATUS_CN]}
             </Badge>
           </div>
         </CardHeader>
@@ -438,9 +447,9 @@ export default function OrdersPage() {
             ) : orders.filter((order) => order.status === status).length === 0 ? (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>暂无{status}订单</AlertTitle>
+                <AlertTitle>暂无{ORDER_STATUS_CN[status as keyof typeof ORDER_STATUS_CN]}订单</AlertTitle>
                 <AlertDescription>
-                  您还没有{status}的订单。
+                  您还没有{ORDER_STATUS_CN[status as keyof typeof ORDER_STATUS_CN]}的订单。
                 </AlertDescription>
               </Alert>
             ) : (
