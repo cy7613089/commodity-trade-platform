@@ -37,6 +37,14 @@ export default function OrdersPage() {
   } = useOrderStore();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [totalOrdersCount, setTotalOrdersCount] = useState<number>(0);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
+    [ORDER_STATUS.PENDING_PAYMENT]: 0,
+    [ORDER_STATUS.PENDING_SHIPMENT]: 0,
+    [ORDER_STATUS.SHIPPED]: 0,
+    [ORDER_STATUS.COMPLETED]: 0,
+    [ORDER_STATUS.CANCELLED]: 0,
+  });
   
   // 客户端组件挂载和初始化
   useEffect(() => {
@@ -44,6 +52,23 @@ export default function OrdersPage() {
     // 获取订单数据
     fetchOrders();
   }, [fetchOrders]);
+
+  // 当pagination变化且当前选项卡是"all"时，更新总订单数
+  useEffect(() => {
+    if (activeTab === "all") {
+      setTotalOrdersCount(pagination.totalItems);
+      
+      // 保存每种状态的订单数量
+      const counts = {
+        [ORDER_STATUS.PENDING_PAYMENT]: orders.filter(order => order.status === ORDER_STATUS.PENDING_PAYMENT).length,
+        [ORDER_STATUS.PENDING_SHIPMENT]: orders.filter(order => order.status === ORDER_STATUS.PENDING_SHIPMENT).length,
+        [ORDER_STATUS.SHIPPED]: orders.filter(order => order.status === ORDER_STATUS.SHIPPED).length,
+        [ORDER_STATUS.COMPLETED]: orders.filter(order => order.status === ORDER_STATUS.COMPLETED).length,
+        [ORDER_STATUS.CANCELLED]: orders.filter(order => order.status === ORDER_STATUS.CANCELLED).length,
+      };
+      setStatusCounts(counts);
+    }
+  }, [pagination.totalItems, activeTab, orders]);
 
   // 处理标签切换
   const handleTabChange = (value: string) => {
@@ -66,14 +91,13 @@ export default function OrdersPage() {
   
   // 获取所有订单状态的订单数量
   const orderCounts = {
-    all: pagination.totalItems,
-    // 注意：这里只能统计当前可见的订单，除非API提供了各状态的计数
-    // 实际应用中可能需要另一个API端点提供状态计数
-    [ORDER_STATUS.PENDING_PAYMENT]: orders.filter(order => order.status === ORDER_STATUS.PENDING_PAYMENT).length,
-    [ORDER_STATUS.PENDING_SHIPMENT]: orders.filter(order => order.status === ORDER_STATUS.PENDING_SHIPMENT).length,
-    [ORDER_STATUS.SHIPPED]: orders.filter(order => order.status === ORDER_STATUS.SHIPPED).length,
-    [ORDER_STATUS.COMPLETED]: orders.filter(order => order.status === ORDER_STATUS.COMPLETED).length,
-    [ORDER_STATUS.CANCELLED]: orders.filter(order => order.status === ORDER_STATUS.CANCELLED).length,
+    all: totalOrdersCount || pagination.totalItems,
+    // 当选中特定tab时，使用保存的状态计数，否则从当前orders中计算
+    [ORDER_STATUS.PENDING_PAYMENT]: activeTab !== "all" ? statusCounts[ORDER_STATUS.PENDING_PAYMENT] : orders.filter(order => order.status === ORDER_STATUS.PENDING_PAYMENT).length,
+    [ORDER_STATUS.PENDING_SHIPMENT]: activeTab !== "all" ? statusCounts[ORDER_STATUS.PENDING_SHIPMENT] : orders.filter(order => order.status === ORDER_STATUS.PENDING_SHIPMENT).length,
+    [ORDER_STATUS.SHIPPED]: activeTab !== "all" ? statusCounts[ORDER_STATUS.SHIPPED] : orders.filter(order => order.status === ORDER_STATUS.SHIPPED).length,
+    [ORDER_STATUS.COMPLETED]: activeTab !== "all" ? statusCounts[ORDER_STATUS.COMPLETED] : orders.filter(order => order.status === ORDER_STATUS.COMPLETED).length,
+    [ORDER_STATUS.CANCELLED]: activeTab !== "all" ? statusCounts[ORDER_STATUS.CANCELLED] : orders.filter(order => order.status === ORDER_STATUS.CANCELLED).length,
   };
   
   // 根据订单状态获取图标
