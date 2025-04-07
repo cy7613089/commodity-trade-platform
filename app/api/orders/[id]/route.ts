@@ -68,7 +68,6 @@ export async function GET(
       .from('orders')
       .select(`
         *,
-        addresses (*),
         order_items (
             *,
             products ( id, name, images )
@@ -225,7 +224,6 @@ export async function PUT(
       .eq('id', orderId)
       .select(`
         *,
-        addresses (*),
         order_items (
             *,
             products ( id, name, images )

@@ -59,6 +59,9 @@ export default function CartPage() {
   // 用于全选/全不选的状态
   const [allSelected, setAllSelected] = useState(false);
   
+  // 添加结算处理状态
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  
   // 初始加载时获取购物车数据
   useEffect(() => {
     fetchCart();
@@ -109,7 +112,7 @@ export default function CartPage() {
   };
   
   // 处理结算
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     const hasSelectedItems = items.some(item => item.selected);
     
     if (!hasSelectedItems) {
@@ -117,8 +120,33 @@ export default function CartPage() {
       return;
     }
     
-    // 跳转到结算页面
-    router.push('/checkout');
+    try {
+      // 显示加载状态
+      setIsCheckingOut(true);
+      
+      // 调用创建订单API
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "创建订单失败");
+      }
+      
+      const orderData = await response.json();
+      
+      // 跳转到结算页面，并带上订单ID
+      router.push(`/checkout?orderId=${orderData.orderId}`);
+    } catch (error) {
+      console.error("创建订单失败:", error);
+      toast.error(error instanceof Error ? error.message : "创建订单失败，请稍后重试");
+    } finally {
+      setIsCheckingOut(false);
+    }
   };
   
   // 空购物车显示

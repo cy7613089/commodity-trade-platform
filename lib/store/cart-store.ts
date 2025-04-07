@@ -58,6 +58,7 @@ interface CartStore extends CartState {
   // 获取本地统计信息
   getItemCount: () => number;
   getTotalPrice: () => number;
+  getTotalOriginalPrice: () => number;
   getSelectedTotalPrice: () => number;
   
   // 同步购物车数据（用于用户登录后）
@@ -495,6 +496,13 @@ export const useCartStore = create<CartStore>()(
       getTotalPrice: () => {
         return get().items.reduce(
           (total, item) => safeAdd(total, safeMultiply(item.price, item.quantity)), 
+          0
+        );
+      },
+      
+      getTotalOriginalPrice: () => {
+        return get().items.reduce(
+          (total, item) => safeAdd(total, safeMultiply(item.originalPrice || item.price, item.quantity)), 
           0
         );
       },

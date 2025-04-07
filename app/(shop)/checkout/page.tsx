@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   ShoppingCart,
@@ -18,14 +18,20 @@ import { formatPrice, safeMultiply, safeSubtract } from "@/lib/utils/format";
 import AddressSelector from "@/components/checkout/address-selector";
 import PaymentMethod from "@/components/checkout/payment-method";
 import CouponSelector from "@/components/cart/coupon-selector";
+import { toast } from "sonner";
 
 export default function CheckoutPage() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("orderId");
+  
   const [mounted, setMounted] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("alipay");
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [couponDiscount, setCouponDiscount] = useState(0);
+  const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const router = useRouter();
   
@@ -37,6 +43,39 @@ export default function CheckoutPage() {
     clearCart
   } = useCartStore();
   
+  // 加载订单详情
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (!orderId) return;
+      
+      try {
+        const response = await fetch(`/api/orders/${orderId}`);
+        if (!response.ok) {
+          throw new Error("获取订单详情失败");
+        }
+        
+        const data = await response.json();
+        setOrderDetails(data);
+        
+        // 如果有地址，设置默认选中
+        if (data.address_id) {
+          setSelectedAddress(data.address_id);
+        }
+      } catch (error) {
+        console.error("获取订单详情失败:", error);
+        toast.error("获取订单详情失败，请返回购物车重试");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    if (orderId) {
+      fetchOrderDetails();
+    } else {
+      setIsLoading(false);
+    }
+  }, [orderId]);
+  
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -46,8 +85,8 @@ export default function CheckoutPage() {
     return <div className="container mx-auto py-10">正在加载...</div>;
   }
 
-  // 如果购物车为空，重定向到购物车页面
-  if (items.length === 0) {
+  // 如果没有订单ID，重定向到购物车页面
+  if (!orderId && !isLoading) {
     return (
       <div className="container mx-auto py-10">
         <div className="mb-6">
@@ -61,12 +100,12 @@ export default function CheckoutPage() {
         
         <div className="flex flex-col items-center justify-center py-20">
           <ShoppingCart className="mb-4 h-16 w-16 text-muted-foreground" />
-          <h2 className="mb-2 text-2xl font-semibold">购物车为空</h2>
+          <h2 className="mb-2 text-2xl font-semibold">未找到订单信息</h2>
           <p className="mb-6 text-center text-muted-foreground">
-            您的购物车中还没有商品，无法进行结算
+            请先返回购物车，选择商品进行结算
           </p>
-          <Link href="/products">
-            <Button>浏览商品</Button>
+          <Link href="/cart">
+            <Button>返回购物车</Button>
           </Link>
         </div>
       </div>
@@ -74,42 +113,68 @@ export default function CheckoutPage() {
   }
 
   // 计算金额
-  const subtotal = getTotalPrice();
-  const originalPrice = getTotalOriginalPrice();
-  const productDiscount = safeSubtract(originalPrice, subtotal);
+  const subtotal = orderDetails ? orderDetails.final_amount - orderDetails.shipping_fee : getTotalPrice();
+  const originalPrice = orderDetails ? orderDetails.total_amount : getTotalOriginalPrice();
+  const productDiscount = orderDetails ? orderDetails.discount_amount : safeSubtract(originalPrice, subtotal);
   
   // 配送费 (示例: 订单金额满99元免运费，否则10元运费)
-  const shippingFee = subtotal >= 99 ? 0 : 10;
+  const shippingFee = orderDetails ? orderDetails.shipping_fee : (subtotal >= 99 ? 0 : 10);
   
   // 最终价格 = 商品总价 - 优惠券折扣 + 配送费
-  const finalPrice = safeSubtract(subtotal, couponDiscount) + shippingFee;
+  const finalPrice = orderDetails 
+    ? orderDetails.final_amount 
+    : safeSubtract(subtotal, couponDiscount) + shippingFee;
 
   // 处理订单提交
   const handleSubmitOrder = async () => {
     // 基本验证
     if (!selectedAddress) {
-      alert("请选择收货地址");
+      toast.error("请选择收货地址");
       return;
     }
 
     if (!selectedPaymentMethod) {
-      alert("请选择支付方式");
+      toast.error("请选择支付方式");
       return;
     }
 
     try {
       setIsSubmitting(true);
 
-      // 这里模拟API请求创建订单
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 如果有订单ID，则更新订单状态
+      if (orderId) {
+        // 更新订单状态为"待发货"
+        const response = await fetch(`/api/orders/${orderId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "PENDING_SHIPMENT",
+            payment_method: selectedPaymentMethod,
+            payment_status: "paid",
+            address_id: selectedAddress,
+          }),
+        });
 
-      // 清空购物车
-      clearCart();
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "更新订单状态失败");
+        }
 
-      // 跳转到支付模拟页面
-      router.push(`/checkout/payment?orderId=${Date.now()}&amount=${finalPrice}&method=${selectedPaymentMethod}`);
-    } catch {
-      alert("提交订单失败，请稍后重试");
+        // 清空购物车
+        await clearCart();
+
+        // 跳转到支付模拟页面
+        router.push(`/checkout/payment?orderId=${orderId}&amount=${finalPrice}&method=${selectedPaymentMethod}`);
+      } else {
+        // 没有订单ID的异常情况处理
+        toast.error("没有找到订单信息，请返回购物车重试");
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error("提交订单失败:", error);
+      toast.error(error instanceof Error ? error.message : "提交订单失败，请稍后重试");
       setIsSubmitting(false);
     }
   };
@@ -128,6 +193,9 @@ export default function CheckoutPage() {
     }
   };
 
+  // 显示商品项
+  const displayItems = orderDetails?.order_items || items;
+
   return (
     <div className="container mx-auto py-10">
       <div className="mb-6">
@@ -144,7 +212,7 @@ export default function CheckoutPage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* 左侧：收货地址、支付方式和优惠券 */}
         <div className="lg:col-span-2 space-y-6">
-          <AddressSelector onAddressSelect={setSelectedAddress} />
+          <AddressSelector onAddressSelect={setSelectedAddress} selectedAddressId={selectedAddress} />
           <PaymentMethod onMethodSelect={setSelectedPaymentMethod} />
           <CouponSelector total={subtotal} onCouponSelect={handleCouponSelect} />
         </div>
@@ -159,21 +227,21 @@ export default function CheckoutPage() {
             <CardContent className="space-y-4">
               {/* 商品列表 */}
               <div>
-                <h3 className="mb-2 font-medium">订单商品 ({items.length})</h3>
+                <h3 className="mb-2 font-medium">订单商品 ({displayItems.length})</h3>
                 <div className="max-h-[250px] overflow-y-auto rounded-md border">
-                  {items.map((item) => (
+                  {displayItems.map((item: any) => (
                     <div key={item.id} className="flex items-center gap-3 border-b p-3 last:border-0">
                       <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border">
                         <Image
-                          src={item.image || '/placeholder.svg'}
-                          alt={item.name || '商品图片'}
+                          src={item.product_image || item.image || '/placeholder.svg'}
+                          alt={item.product_name || item.name || '商品图片'}
                           width={64}
                           height={64}
                           className="h-full w-full object-cover"
                         />
                       </div>
                       <div className="flex-1 space-y-1">
-                        <h4 className="text-sm font-medium line-clamp-1">{item.name}</h4>
+                        <h4 className="text-sm font-medium line-clamp-1">{item.product_name || item.name}</h4>
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <span>¥{formatPrice(item.price)} x {item.quantity}</span>
                           <span>¥{formatPrice(safeMultiply(item.price, item.quantity))}</span>

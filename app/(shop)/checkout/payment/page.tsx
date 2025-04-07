@@ -20,8 +20,26 @@ export default function PaymentPage() {
   const orderId = searchParams.get("orderId") || "未知订单";
   const amount = Number(searchParams.get("amount")) || 0;
   const method = searchParams.get("method") || "alipay";
+  const [orderDetails, setOrderDetails] = useState<any>(null);
   
   useEffect(() => {
+    // 获取订单详情
+    const fetchOrderDetails = async () => {
+      if (orderId === "未知订单") return;
+      
+      try {
+        const response = await fetch(`/api/orders/${orderId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setOrderDetails(data);
+        }
+      } catch (error) {
+        console.error("获取订单详情失败:", error);
+      }
+    };
+    
+    fetchOrderDetails();
+    
     // 模拟支付处理
     const timer = setTimeout(() => {
       // 模拟90%的概率支付成功
@@ -30,7 +48,7 @@ export default function PaymentPage() {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [orderId]);
 
   // 成功后自动跳转倒计时
   useEffect(() => {
@@ -78,7 +96,7 @@ export default function PaymentPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">支付{paymentStatus === "processing" ? "处理中" : paymentStatus === "success" ? "成功" : "失败"}</CardTitle>
           <CardDescription>
-            订单号: {orderId}
+            订单号: {orderDetails?.order_number || orderId}
           </CardDescription>
         </CardHeader>
         
