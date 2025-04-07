@@ -48,13 +48,14 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const supabase = createClient();
-  const orderId = params.id;
+  const orderId = await params.id;
 
   if (!orderId || typeof orderId !== 'string') {
       return NextResponse.json({ error: 'Invalid Order ID format' }, { status: 400 });
   }
 
   try {
+    // 恢复认证检查
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,7 +63,7 @@ export async function GET(
     const userId = session.user.id;
     const userRole = await getUserRole(userId);
     const isAdmin = userRole === 'admin';
-
+    
     const { data: order, error } = await supabase
       .from('orders')
       .select(`
@@ -70,7 +71,7 @@ export async function GET(
         addresses (*),
         order_items (
             *,
-            products ( id, name, image )
+            products ( id, name, images )
         )
         ${isAdmin ? ', users ( id, email, name )' : ''}
       `)
@@ -89,7 +90,7 @@ export async function GET(
          return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-
+    // 恢复权限检查
     // 权限检查: 非管理员只能看自己的订单
     if (!isAdmin && order.user_id !== userId) {
       console.warn(`User ${userId} attempted to access order ${orderId} belonging to ${order.user_id}`);
@@ -112,7 +113,7 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const orderId = params.id;
+  const orderId = await params.id;
   let supabaseAdmin: ReturnType<typeof createAdminClient>;
 
   if (!orderId || typeof orderId !== 'string') {
@@ -226,7 +227,7 @@ export async function PUT(
         addresses (*),
         order_items (
             *,
-            products ( id, name, image )
+            products ( id, name, images )
         )
       `)
       .single();
