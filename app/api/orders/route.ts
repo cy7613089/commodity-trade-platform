@@ -308,6 +308,7 @@ export async function GET(request: Request) { // 另写一个接口实现管理�
       id,
       order_number,
       final_amount,
+      total_amount,
       status,
       payment_status,
       created_at,

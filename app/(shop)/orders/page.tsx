@@ -181,7 +181,7 @@ export default function OrdersPage() {
                 共 {order.order_items.length} 件商品
               </div>
               <div className="text-lg font-semibold">
-                总计: ¥{formatPrice(order.total_amount)}
+                总计: ¥{formatPrice(order.final_amount)}
               </div>
             </div>
           </div>
@@ -196,7 +196,36 @@ export default function OrdersPage() {
             <div className="space-x-2">
               {order.status === ORDER_STATUS.PENDING_PAYMENT && (
                 <>
-                  <Button variant="default">
+                  <Button 
+                    variant="default"
+                    onClick={async () => {
+                      try {
+                        // 更新订单状态为"待发货"
+                        const response = await fetch(`/api/orders/${order.id}`, {
+                          method: "PUT",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "PENDING_SHIPMENT",
+                            payment_method: "alipay",
+                            payment_status: "paid"
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.error || "更新订单状态失败");
+                        }
+
+                        // 跳转到支付模拟页面
+                        router.push(`/checkout/payment?orderId=${order.id}&amount=${order.final_amount}&method=alipay`);
+                      } catch (error) {
+                        console.error("支付处理失败:", error);
+                        alert(error instanceof Error ? error.message : "支付处理失败，请稍后重试");
+                      }
+                    }}
+                  >
                     去支付
                   </Button>
                   <Button 

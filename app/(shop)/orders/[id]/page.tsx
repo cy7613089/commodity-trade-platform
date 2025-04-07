@@ -350,7 +350,38 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
             <div className="flex flex-col gap-2">
               {currentOrder.status === ORDER_STATUS.PENDING_PAYMENT && (
                 <>
-                  <Button className="w-full">去支付</Button>
+                  <Button 
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        // 更新订单状态为"待发货"
+                        const response = await fetch(`/api/orders/${currentOrder.id}`, {
+                          method: "PUT",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            status: "PENDING_SHIPMENT",
+                            payment_method: "alipay",
+                            payment_status: "paid"
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.error || "更新订单状态失败");
+                        }
+
+                        // 跳转到支付模拟页面
+                        router.push(`/checkout/payment?orderId=${currentOrder.id}&amount=${currentOrder.final_amount}&method=alipay`);
+                      } catch (error) {
+                        console.error("支付处理失败:", error);
+                        alert(error instanceof Error ? error.message : "支付处理失败，请稍后重试");
+                      }
+                    }}
+                  >
+                    去支付
+                  </Button>
                   <Button 
                     variant="outline" 
                     className="w-full"
