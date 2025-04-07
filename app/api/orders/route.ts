@@ -282,7 +282,7 @@ export async function POST(request: Request) {
  * 支持按 status 过滤, 分页 (page, limit)
  * 普通用户只能看自己的, 管理员可以看所有 (需实现角色检查)
  */
-export async function GET(request: Request) {
+export async function GET(request: Request) { // 另写一个接口实现管理员订单管理页面逻辑
   const supabase = createClient();
   const { searchParams } = new URL(request.url);
 
@@ -301,8 +301,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = session.user.id;
-    const userRole = await getUserRole(userId); // 获取用户角色
-    const isAdmin = userRole === 'admin';
+    // const userRole = await getUserRole(userId); // 获取用户角色
+    // const isAdmin = userRole === 'admin';
 
     let query = supabase.from('orders').select(`
       id,
@@ -319,13 +319,13 @@ export async function GET(request: Request) {
         quantity,
         price
       )
-      ${isAdmin ? ', users ( id, email, name )' : ''}
     `, { count: 'exact' }); // 获取总数用于分页
-
+      // query中模版字符串末尾去掉了{isAdmin ? ', users ( id, email, name )' : ''}
+    
     // 条件查询
-    if (!isAdmin) {
-      query = query.eq('user_id', userId);
-    }
+    // if (!isAdmin) {
+    query = query.eq('user_id', userId);
+    // }
     if (statusFilter) {
       query = query.eq('status', statusFilter);
     }

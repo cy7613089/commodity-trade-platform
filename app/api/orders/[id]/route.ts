@@ -61,8 +61,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = session.user.id;
-    const userRole = await getUserRole(userId);
-    const isAdmin = userRole === 'admin';
+    // const userRole = await getUserRole(userId);
+    // const isAdmin = userRole === 'admin';
     
     const { data: order, error } = await supabase
       .from('orders')
@@ -73,10 +73,10 @@ export async function GET(
             *,
             products ( id, name, images )
         )
-        ${isAdmin ? ', users ( id, email, name )' : ''}
       `)
       .eq('id', orderId)
       .single(); // 获取单个记录
+      // query中模版字符串末尾去掉了{isAdmin ? ', users ( id, email, name )' : ''}
 
     if (error) {
         if (error.code === 'PGRST116') { // specific code for no rows found
@@ -92,7 +92,8 @@ export async function GET(
 
     // 恢复权限检查
     // 权限检查: 非管理员只能看自己的订单
-    if (!isAdmin && order.user_id !== userId) {
+    // if (!isAdmin && order.user_id !== userId) {
+    if (order.user_id !== userId) {
       console.warn(`User ${userId} attempted to access order ${orderId} belonging to ${order.user_id}`);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
