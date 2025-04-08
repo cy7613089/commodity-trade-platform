@@ -485,8 +485,50 @@ export async function signOut() {
 - rule_type: text NOT NULL (规则类型：product/time/amount/combination)
 - rule_value: jsonb NOT NULL (具体规则值，JSON格式)
 - priority: integer DEFAULT 0 (规则优先级)
+- is_active: boolean DEFAULT true (是否启用该规则)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
+```
+
+以下是各种类型优惠券的规则JSON结构示例：
+
+```
+-- 商品券规则示例
+{
+  "product_ids": ["uuid1", "uuid2", "uuid3"],
+  "min_quantity": 2
+}
+
+-- 时间券规则示例(固定日期)
+{
+  "time_type": "fixed",
+  "fixed_dates": ["2023-11-11", "2023-12-12"],
+  "time_ranges": ["09:00-18:00"]
+}
+
+-- 时间券规则示例(周期性)
+{
+  "time_type": "recurring",
+  "recurring": {
+    "days_of_week": [1, 2], // 周一、周二
+    "time_ranges": ["09:00-18:00"]
+  }
+}
+
+-- 满减券规则示例
+{
+  "tiers": [
+    {"min_amount": 100, "discount": 20},
+    {"min_amount": 200, "discount": 50},
+    {"min_amount": 300, "discount": 80}
+  ]
+}
+
+-- 组合券规则示例
+{
+  "required_coupon_types": ["product", "time"],
+  "discount_multiplier": 1.2 // 额外增加20%的折扣
+}
 ```
 
 ##### user_coupons 表（用户优惠券表）
@@ -501,6 +543,39 @@ export async function signOut() {
 - used_order_id: uuid REFERENCES orders(id) (使用的订单ID)
 - created_at: timestamptz DEFAULT now() (获得时间)
 - expired_at: timestamptz (到期时间，可能与优惠券本身的过期时间不同)
+```
+
+##### coupon_stacking_rules 表（优惠券叠加规则表）
+```
+优惠券叠加规则表
+- id: uuid PRIMARY KEY
+- name: text (规则名称)
+- description: text (规则描述)
+- coupon_ids: uuid[] NOT NULL (可叠加使用的优惠券ID数组)
+- is_active: boolean DEFAULT true (是否启用)
+- created_at: timestamptz DEFAULT now()
+- updated_at: timestamptz DEFAULT now()
+```
+
+##### global_coupon_settings 表（全局优惠设置表）
+```
+全局优惠设置表 (通常只有一条记录)
+- id: uuid PRIMARY KEY
+- max_percentage_enabled: boolean DEFAULT false (是否启用最大优惠比例)
+- max_percentage: decimal(5,2) DEFAULT 50.00 (最大优惠比例，如50%)
+- max_amount_enabled: boolean DEFAULT false (是否启用最大优惠金额)
+- max_amount: decimal(10,2) DEFAULT 100.00 (最大优惠金额)
+- created_at: timestamptz DEFAULT now()
+- updated_at: timestamptz DEFAULT now()
+```
+
+##### coupon_application_order 表（优惠券应用顺序表）
+```
+优惠券应用顺序表
+- id: uuid PRIMARY KEY
+- coupon_ids: uuid[] NOT NULL (按应用顺序排列的优惠券ID数组)
+- created_at: timestamptz DEFAULT now()
+- updated_at: timestamptz DEFAULT now()
 ```
 
 ##### carts 表（购物车表）
@@ -579,6 +654,19 @@ CREATE INDEX idx_cart_items_product ON cart_items(product_id);
 CREATE INDEX idx_product_reviews_product ON product_reviews(product_id);
 CREATE INDEX idx_product_reviews_user ON product_reviews(user_id);
 CREATE INDEX idx_product_reviews_rating ON product_reviews(rating);
+
+-- 优惠券规则表索引
+CREATE INDEX idx_coupon_rules_coupon_id ON coupon_rules(coupon_id);
+CREATE INDEX idx_coupon_rules_rule_type ON coupon_rules(rule_type);
+CREATE INDEX idx_coupon_rules_priority ON coupon_rules(priority);
+CREATE INDEX idx_coupon_rules_is_active ON coupon_rules(is_active);
+
+-- 优惠券叠加规则表索引
+CREATE INDEX idx_coupon_stacking_rules_is_active ON coupon_stacking_rules(is_active);
+CREATE INDEX idx_coupon_stacking_rules_coupon_ids ON coupon_stacking_rules USING GIN(coupon_ids);
+
+-- 优惠券应用顺序表索引
+CREATE INDEX idx_coupon_application_order_coupon_ids ON coupon_application_order USING GIN(coupon_ids);
 ```
 
 #### 2.2.4 数据访问策略
