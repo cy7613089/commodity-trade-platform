@@ -36,6 +36,7 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -60,6 +61,35 @@ export function Navbar() {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (user) {
+      const fetchUserRole = async () => {
+        try {
+          // 从数据库获取用户角色
+          const { data, error } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          
+          if (error) {
+            console.error('获取用户角色失败:', error);
+            return;
+          }
+          
+          if (data) {
+            setUserRole(data.role);
+          }
+        } catch (error) {
+          console.error('获取用户角色时出错:', error);
+        }
+      };
+      fetchUserRole();
+    } else {
+      setUserRole(null);
+    }
+  }, [user, supabase]);
 
   const handleSignOut = async () => {
     try {
@@ -155,13 +185,14 @@ export function Navbar() {
                     <Link href="/account">个人中心</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/orders">
-                      <div className="flex items-center">
-                        <Package className="mr-2 h-4 w-4" />
-                        <span>我的订单</span>
-                      </div>
-                    </Link>
+                    <Link href="/orders">我的订单</Link>
                   </DropdownMenuItem>
+                  {/* 管理员订单管理入口 */}
+                  {userRole === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/orders">订单管理</Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <div className="flex items-center">
