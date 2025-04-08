@@ -144,6 +144,32 @@
 - 实时库存检查与数量限制
 - 支持商品价格与折扣实时计算
 
+#### 2.1.5 优惠券管理API
+- `/api/coupons`：获取优惠券列表，支持分页、排序和筛选（优惠券类型、状态等）
+- `/api/coupons/[id]`：获取、更新或删除单个优惠券详细信息
+- `/api/coupons/validate`：验证优惠券代码是否有效（检查代码存在性、有效期、激活状态等）
+- `/api/coupons/search`：根据优惠券代码、名称或描述搜索优惠券
+- `/api/coupon-rules`：获取或创建优惠券规则
+- `/api/coupon-rules/[id]`：获取、更新或删除单个优惠券规则
+- `/api/coupon-rules/coupon/[couponId]`：获取指定优惠券的所有规则
+- `/api/coupon-stacking`：获取或设置优惠券叠加规则
+- `/api/coupon-settings`：获取或更新全局优惠券设置（如最大优惠比例、最大优惠金额）
+- `/api/coupon-application-order`：获取或设置优惠券应用顺序
+- `/api/user-coupons`：获取当前用户的所有优惠券
+- `/api/user-coupons/[id]`：获取、更新特定用户优惠券（如标记为已使用）
+- `/api/user-coupons/assign`：为用户分配优惠券
+- `/api/user-coupons/calculate`：计算应用特定优惠券组合的优惠金额
+- `/api/user-coupons/applicable`：获取对特定订单可用的优惠券列表
+- `/api/admin/coupons`：管理员批量操作优惠券（创建、激活、停用）
+- `/api/admin/coupons/stats`：获取优惠券使用统计数据
+- `/api/admin/user-coupons`：管理员管理用户优惠券（查询、分配、撤销）
+- 使用Next.js 14的路由处理程序处理API请求
+- 利用Server Actions进行数据验证和处理
+- 集成Supabase数据库进行优惠券数据的存储和查询
+- 实现优惠券计算逻辑，支持多种优惠券类型和规则
+- 使用事务确保优惠券状态更新的原子性（特别是优惠券使用时）
+- 实现安全机制防止优惠券滥用，包括频率限制和服务器端验证
+
 ### 2.2 数据库设计
 #### 2.2.1 Supabase安装与配置
 
