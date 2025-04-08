@@ -187,11 +187,16 @@ export function Navbar() {
                   <DropdownMenuItem asChild>
                     <Link href="/orders">我的订单</Link>
                   </DropdownMenuItem>
-                  {/* 管理员订单管理入口 */}
+                  {/* 管理员专有菜单 */}
                   {userRole === 'admin' && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin/orders">订单管理</Link>
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/products">商品管理</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/orders">订单管理</Link>
+                      </DropdownMenuItem>
+                    </>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
