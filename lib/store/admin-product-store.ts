@@ -8,6 +8,7 @@ export interface Product {
   price: number;
   originalPrice?: number;
   original_price?: number;
+  originalprice?: number;
   stock: number;
   images?: string[];
   specs?: Record<string, unknown>;
@@ -59,7 +60,9 @@ function formatProduct(product: Record<string, unknown>): Product {
   return {
     ...product as unknown as Product,
     // 处理字段命名差异，优先使用驼峰命名
-    originalPrice: (product.originalPrice as number | undefined) || (product.original_price as number | undefined),
+    originalPrice: (product.originalPrice as number | undefined) || 
+                   (product.original_price as number | undefined) || 
+                   (product.originalprice as number | undefined),
     reviewCount: (product.reviewCount as number | undefined) || (product.review_count as number | undefined)
   };
 }
@@ -178,13 +181,27 @@ export const useAdminProductStore = create<ProductState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      console.log("创建商品 - 前端传入数据:", productData);
+      console.log("创建商品 - 原价值:", productData.originalPrice);
+      
+      // 转换字段名，确保与数据库字段名匹配
+      const formattedData = {
+        ...productData,
+        // 将驼峰命名转换为数据库使用的全小写字段名
+        // 注意：确保0值不被转换为null
+        originalprice: productData.originalPrice === 0 ? 0 : (productData.originalPrice || null),
+      };
+      
+      console.log("创建商品 - 处理后数据:", formattedData);
+      console.log("创建商品 - 转换后originalprice:", formattedData.originalprice);
+      
       const response = await fetch('/api/admin/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(productData),
+        body: JSON.stringify(formattedData),
       });
       
       const data = await response.json();
@@ -213,13 +230,27 @@ export const useAdminProductStore = create<ProductState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      console.log("更新商品 - 前端传入数据:", productData);
+      console.log("更新商品 - 原价值:", productData.originalPrice);
+      
+      // 转换字段名，确保与数据库字段名匹配
+      const formattedData = {
+        ...productData,
+        // 将驼峰命名转换为数据库使用的全小写字段名
+        // 注意：确保0值不被转换为null
+        originalprice: productData.originalPrice === 0 ? 0 : (productData.originalPrice || null),
+      };
+      
+      console.log("更新商品 - 处理后数据:", formattedData);
+      console.log("更新商品 - 转换后originalprice:", formattedData.originalprice);      
+      
       const response = await fetch(`/api/admin/products/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(productData),
+        body: JSON.stringify(formattedData),
       });
       
       const data = await response.json();
@@ -228,7 +259,7 @@ export const useAdminProductStore = create<ProductState>((set, get) => ({
         throw new Error(data.error || '更新商品失败');
       }
       
-      // 使用当前参数刷新商品列表，保持在当前页面
+      // 重新获取商品列表
       await get().fetchProducts(get().currentParams);
       
       set({ loading: false });
@@ -253,29 +284,12 @@ export const useAdminProductStore = create<ProductState>((set, get) => ({
         credentials: 'include'
       });
       
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || '删除商品失败');
+        throw new Error('删除商品失败');
       }
       
-      // 使用当前参数刷新商品列表
-      const currentParams = get().currentParams;
-      
-      // 如果当前页没有数据了（删除后），尝试回到上一页
-      const products = get().products;
-      const currentPage = currentParams.page;
-      
-      // 如果当前页只有1个商品，且不是第1页，删除后回到上一页
-      if (products.length === 1 && currentPage > 1) {
-        await get().fetchProducts({
-          ...currentParams,
-          page: currentPage - 1
-        });
-      } else {
-        // 否则保持在当前页
-        await get().fetchProducts(currentParams);
-      }
+      // 重新获取商品列表
+      await get().fetchProducts(get().currentParams);
       
       set({ loading: false });
       return true;
@@ -288,4 +302,4 @@ export const useAdminProductStore = create<ProductState>((set, get) => ({
       return false;
     }
   }
-})); 
+}));

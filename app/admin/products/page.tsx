@@ -141,6 +141,8 @@ export default function AdminProductsPage() {
       } else {
         // 创建新商品
         await createProduct(formData);
+        // 创建新商品后，将当前页码重置为1
+        setCurrentPage(1);
       }
       
       // 关闭表单弹窗
@@ -157,17 +159,37 @@ export default function AdminProductsPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
+    console.log(`handleInputChange - name: ${name}, value: ${value}, type: ${type}`);
+    
     if (type === 'number') {
-      setFormData({
-        ...formData,
-        [name]: parseFloat(value) || 0
-      });
+      // 特殊处理originalPrice字段，因为它可能为空
+      if (name === 'originalPrice' && value === '') {
+        console.log(`Setting ${name} to null for empty input`);
+        setFormData({
+          ...formData,
+          [name]: 0  // 设置为0而不是undefined，避免类型错误
+        });
+      } else {
+        // 正确处理数字类型，不使用 || 0 操作符，避免0值被误判
+        const parsedValue = value === '' ? 0 : parseFloat(value);
+        console.log(`Setting ${name} to number: ${parsedValue}`);
+        
+        setFormData({
+          ...formData,
+          [name]: isNaN(parsedValue) ? 0 : parsedValue
+        });
+      }
     } else {
       setFormData({
         ...formData,
         [name]: value
       });
     }
+    
+    // 验证表单数据确实更新了
+    setTimeout(() => {
+      console.log('formData after update:', formData);
+    }, 0);
   };
   
   // 处理图片URL输入
@@ -386,7 +408,7 @@ export default function AdminProductsPage() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>确认删除</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  您确定要删除商品 &quot;{product.name}&quot; 吗？此操作无法撤销。
+                                  您确定要删除商品 &ldquo;{product.name}&rdquo; 吗？此操作无法撤销。
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

@@ -164,12 +164,15 @@ export async function PUT(
     }
     
     // 设置更新数据
+    console.log("原始请求体:", body);
+    console.log("原始originalPrice值:", body.originalPrice);
+    
     const updateData = {
       name: body.name,
       slug: body.slug,
       description: body.description,
       price: body.price,
-      original_price: body.originalPrice,
+      originalprice: body.originalPrice === 0 ? 0 : (body.originalPrice || null),
       stock: body.stock,
       images: body.images,
       specs: body.specs,
@@ -177,6 +180,9 @@ export async function PUT(
       status: body.status,
       updated_at: new Date().toISOString()
     };
+    
+    console.log("更新数据:", updateData);
+    console.log("更新的originalprice:", updateData.originalprice);
     
     // 执行更新
     const { data: updatedProduct, error } = await adminSupabase

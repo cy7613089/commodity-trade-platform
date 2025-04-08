@@ -169,12 +169,15 @@ export async function POST(request: NextRequest) {
       .concat('-', Math.floor(Math.random() * 1000).toString()); // 添加随机数避免冲突
     
     // 设置默认值
+    console.log("创建商品 - 原始请求体:", body);
+    console.log("创建商品 - 原始originalPrice值:", body.originalPrice);
+    
     const productData = {
       name: body.name,
       slug,
       description: body.description,
       price: body.price,
-      original_price: body.originalPrice,
+      originalprice: body.originalPrice === 0 ? 0 : (body.originalPrice || null),
       stock: body.stock,
       images: body.images,
       specs: body.specs,
@@ -183,6 +186,9 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+    
+    console.log("创建商品 - 处理后数据:", productData);
+    console.log("创建商品 - 处理后originalprice:", productData.originalprice);
     
     // 创建商品
     const { data: newProduct, error } = await adminSupabase
