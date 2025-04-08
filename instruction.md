@@ -574,6 +574,7 @@ export async function signOut() {
 优惠券应用顺序表
 - id: uuid PRIMARY KEY
 - coupon_ids: uuid[] NOT NULL (按应用顺序排列的优惠券ID数组)
+- is_active: boolean DEFAULT true (是否启用)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
 ```
