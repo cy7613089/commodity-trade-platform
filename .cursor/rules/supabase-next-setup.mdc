@@ -1,6 +1,7 @@
 ---
 description: Guidelines for writing Next.js apps with Supabase Authentication
 globs: '**/*.ts, **/*.tsx, **/*.js, **/*.jsx'
+alwaysApply: false
 ---
 # Supabase Next.js Setup Guidelines
 
@@ -74,7 +75,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```json
 {
   "dependencies": {
-    "next": "^14.0.0",
+    "next": "^15.0.0",
     "@supabase/supabase-js": "^2.0.0",
     "@supabase/auth-helpers-nextjs": "^0.8.0",
     "@supabase/auth-ui-react": "^0.4.0",

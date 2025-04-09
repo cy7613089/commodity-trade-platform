@@ -160,8 +160,7 @@
 - `/api/user-coupons/assign`：为用户分配优惠券
 - `/api/user-coupons/calculate`：计算应用特定优惠券组合的优惠金额
 - `/api/user-coupons/applicable`：获取对特定订单可用的优惠券列表
-- `/api/admin/coupons`：管理员批量操作优惠券（创建、激活、停用）
-- `/api/admin/coupons/stats`：获取优惠券使用统计数据
+- `/api/admin/coupons/batch`：管理员批量操作优惠券（创建、激活、停用）
 - `/api/admin/user-coupons`：管理员管理用户优惠券（查询、分配、撤销）
 - 使用Next.js 14的路由处理程序处理API请求
 - 利用Server Actions进行数据验证和处理
@@ -723,7 +722,7 @@ CREATE POLICY "管理员可以查看和修改所有订单" ON orders
 #### 2.2.5 数据同步与刷新策略
 
 ##### 缓存策略
-- 使用 Next.js 14 的服务器组件缓存机制缓存商品和分类数据
+- 使用 Next.js 15 的服务器组件缓存机制缓存商品和分类数据
 - 利用 Supabase 的实时订阅功能（Realtime）获取订单和购物车更新
 
 ##### 数据刷新机制
@@ -803,7 +802,7 @@ Server Actions:
 
 ### 3.2 管理功能
 #### 3.2.1 商品管理功能
-- 添加、编辑、删除商品
+  - 添加、编辑、删除商品
 
 #### 3.2.2 订单处理功能
 - 订单状态更新
