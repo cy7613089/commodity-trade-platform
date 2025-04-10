@@ -17,6 +17,9 @@ export async function middleware(req: NextRequest) {
                          req.nextUrl.pathname.startsWith('/orders') || 
                          req.nextUrl.pathname.startsWith('/checkout');
                          
+    // 检查购物车路由
+    const isCartRoute = req.nextUrl.pathname.startsWith('/cart');
+    
     // 检查是否为管理员路由
     const isAdminRoute = req.nextUrl.pathname.startsWith('/admin');
     
@@ -25,6 +28,11 @@ export async function middleware(req: NextRequest) {
       const redirectUrl = new URL('/login', req.url);
       redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
       return NextResponse.redirect(redirectUrl);
+    }
+    
+    // 如果是购物车路由且用户未登录，重定向到商品列表页
+    if (isCartRoute && !session) {
+      return NextResponse.redirect(new URL('/products', req.url));
     }
     
     // 如果是管理员路由，需要验证用户是否为管理员
