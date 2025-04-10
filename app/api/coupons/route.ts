@@ -88,11 +88,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // 验证必要字段
-    const requiredFields = ['code', 'name', 'type', 'value', 'discount_type', 'start_date', 'end_date'];
+    const requiredFields = ['name', 'type', 'end_date'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json({ error: `缺少必要字段: ${field}` }, { status: 400 });
       }
+    }
+    
+    // 对非满减券，检查折扣类型和优惠值
+    if (body.type !== 'amount') {
+      if (!body.discount_type) {
+        return NextResponse.json({ error: '缺少必要字段: discount_type' }, { status: 400 });
+      }
+      if (body.value === undefined || body.value === null) {
+        return NextResponse.json({ error: '缺少必要字段: value' }, { status: 400 });
+      }
+    } else {
+      // 对满减券，设置默认值
+      body.discount_type = body.discount_type || 'fixed';
+      body.value = body.value || 0;
     }
     
     // 验证优惠券代码唯一性

@@ -78,15 +78,14 @@ export async function GET(request: NextRequest) {
     
     // 获取查询参数
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam) : null;
     const search = searchParams.get('search') || '';
     const sortBy = searchParams.get('sortBy') || 'created_at';
     const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
     
     // 校验参数
     const validPage = isNaN(page) || page < 1 ? 1 : page;
-    const validLimit = isNaN(limit) || limit < 1 || limit > 50 ? 10 : limit;
-    const offset = (validPage - 1) * validLimit;
     
     // 使用管理员权限访问数据库，避免RLS限制
     const adminSupabase = createAdminClient();
@@ -104,9 +103,15 @@ export async function GET(request: NextRequest) {
     // 获取商品总数
     const { count } = await query;
     
-    // 应用排序和分页
-    query = query.order(sortBy, { ascending: order === 'asc' })
-      .range(offset, offset + validLimit - 1);
+    // 应用排序
+    query = query.order(sortBy, { ascending: order === 'asc' });
+    
+    // 如果指定了limit，则应用分页
+    if (limit !== null) {
+      const validLimit = limit < 1 ? 10 : limit; // 如果limit小于1，默认使用10
+      const offset = (validPage - 1) * validLimit;
+      query = query.range(offset, offset + validLimit - 1);
+    }
     
     // 执行查询
     const { data: products, error } = await query;
@@ -119,11 +124,13 @@ export async function GET(request: NextRequest) {
     // 返回响应，包括商品列表、分页信息和总数
     return NextResponse.json({
       products,
-      pagination: {
+      pagination: limit !== null ? {
         page: validPage,
-        limit: validLimit,
+        limit: limit < 1 ? 10 : limit,
         total: count || 0,
-        totalPages: count ? Math.ceil(count / validLimit) : 0
+        totalPages: count ? Math.ceil(count / (limit < 1 ? 10 : limit)) : 0
+      } : {
+        total: count || 0
       }
     });
   } catch (error) {

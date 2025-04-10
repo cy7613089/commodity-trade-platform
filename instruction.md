@@ -492,25 +492,11 @@ export async function signOut() {
 - min_purchase: decimal(10,2) DEFAULT 0 (最低消费金额)
 - max_discount: decimal(10,2) (最大优惠金额，针对百分比折扣)
 - usage_limit: integer (使用次数限制)
-- start_date: timestamptz NOT NULL (有效期开始)
 - end_date: timestamptz NOT NULL (有效期结束)
 - is_active: boolean DEFAULT true (是否激活)
 - color: text DEFAULT 'blue' (优惠券颜色标识: blue/green/purple/orange)
 - icon: text (优惠券图标)
 - coupon_rule: jsonb (优惠规则，JSON格式)
-- created_at: timestamptz DEFAULT now()
-- updated_at: timestamptz DEFAULT now()
-```
-
-##### coupon_rules 表（优惠券规则表）
-```
-优惠券详细规则表
-- id: uuid PRIMARY KEY
-- coupon_id: uuid REFERENCES coupons(id) ON DELETE CASCADE (优惠券ID)
-- rule_type: text NOT NULL (规则类型：product/time/amount/combination)
-- rule_value: jsonb NOT NULL (具体规则值，JSON格式)
-- priority: integer DEFAULT 0 (规则优先级)
-- is_active: boolean DEFAULT true (是否启用该规则)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
 ```
@@ -549,11 +535,17 @@ export async function signOut() {
   ]
 }
 
--- 组合券规则示例
-{
-  "required_coupon_types": ["product", "time"],
-  "discount_multiplier": 1.2 // 额外增加20%的折扣
-}
+##### coupon_rules 表（优惠券规则表）
+```
+优惠券详细规则表
+- id: uuid PRIMARY KEY
+- coupon_id: uuid REFERENCES coupons(id) ON DELETE CASCADE (优惠券ID)
+- rule_type: text NOT NULL (规则类型：product/time/amount/combination)
+- rule_value: jsonb NOT NULL (具体规则值，JSON格式)
+- priority: integer DEFAULT 0 (规则优先级)
+- is_active: boolean DEFAULT true (是否启用该规则)
+- created_at: timestamptz DEFAULT now()
+- updated_at: timestamptz DEFAULT now()
 ```
 
 ##### user_coupons 表（用户优惠券表）
@@ -832,7 +824,7 @@ Server Actions:
 
 #### 4.1.4 组合券
 - **功能实现**：
-  - 支持设置组合使用多种优惠券的优先级和限制条件
+  - 支持设置组合使用多种优惠券的优先级和限制条件，参考4.2.2
 
 ### 4.2 管理后台功能
 管理后台分为'优惠券管理'和'动态规则管理'两个子页面，通过2个tab切换

@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { getAllCategories } from "@/lib/data/categories";
 import { Category } from "@/types";
-import { Menu, ShoppingCart, User, Package, LogOut, LogIn } from 'lucide-react';
+import { Menu, ShoppingCart, User, LogOut, LogIn } from 'lucide-react';
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeModeToggle } from "@/components/theme/theme-mode-toggle";
@@ -195,6 +195,9 @@ export function Navbar() {
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link href="/admin/orders">订单管理</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/coupons">优惠券管理</Link>
                       </DropdownMenuItem>
                     </>
                   )}
