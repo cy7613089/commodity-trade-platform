@@ -34,12 +34,27 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { StackingRuleFormDialog } from '@/components/admin/coupon/stacking-rule-form-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 // 优惠券项类型
 interface CouponOrderItem {
   id: string;
   name?: string;
   type?: string;
+}
+
+// 叠加规则类型 (Ensure this matches types/supabase.ts if generated)
+interface StackingRule {
+  id: string;
+  name: string | null;
+  description: string | null;
+  rule_type: 'ALLOW' | 'DISALLOW';
+  coupon_ids: string[];
+  is_active: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 // 可排序的优惠券项组件
@@ -105,7 +120,16 @@ export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null)
-  const [open, setOpen] = useState(false)
+  const [openCouponDialog, setOpenCouponDialog] = useState(false)
+
+  // --- New States for Stacking Rules ---
+  const [stackingRules, setStackingRules] = useState<StackingRule[]>([]);
+  const [loadingRules, setLoadingRules] = useState(false); // Reuse or rename if needed
+  const [editingRule, setEditingRule] = useState<StackingRule | null>(null);
+  const [openRuleDialog, setOpenRuleDialog] = useState(false);
+  const [ruleTypeToEdit, setRuleTypeToEdit] = useState<'ALLOW' | 'DISALLOW'>('ALLOW');
+  const [ruleToDelete, setRuleToDelete] = useState<StackingRule | null>(null);
+  // --- End New States ---
 
   // 动态规则管理页状态
   const [maxPercentage, setMaxPercentage] = useState(50)
@@ -113,7 +137,6 @@ export default function CouponsPage() {
   const [maxAmount, setMaxAmount] = useState(100)
   const [maxAmountEnabled, setMaxAmountEnabled] = useState(false)
   const [applicationOrder, setApplicationOrder] = useState<CouponOrderItem[]>([])
-  const [loadingRules, setLoadingRules] = useState(false)
 
   // 获取优惠券列表
   const fetchCoupons = async () => {
@@ -135,28 +158,24 @@ export default function CouponsPage() {
     }
   }
 
-  // 获取叠加规则
+  // Fetch Stacking Rules
   const fetchStackingRules = async () => {
     try {
-      setLoadingRules(true)
-      const response = await fetch('/api/admin/coupons/stacking-rules')
-      
+      setLoadingRules(true);
+      const response = await fetch('/api/admin/coupons/stacking-rules');
       if (!response.ok) {
-        throw new Error('获取叠加规则失败')
+        throw new Error('获取叠加规则失败');
       }
-      
-      const data = await response.json()
-      // 使用解构赋值避免未使用变量警告
-      const { rules = [] } = data;
-      if (rules.length > 0) {
-        console.log('共获取到', rules.length, '条叠加规则');
-      }
+      const data = await response.json();
+      setStackingRules(data.rules || []);
     } catch (error) {
-      console.error('Error fetching stacking rules:', error)
+      console.error('Error fetching stacking rules:', error);
+      toast.error('获取叠加规则失败');
+      setStackingRules([]); // Ensure state is array on error
     } finally {
-      setLoadingRules(false)
+      setLoadingRules(false);
     }
-  }
+  };
 
   // 获取优惠上限设置
   const fetchLimits = async () => {
@@ -302,30 +321,37 @@ export default function CouponsPage() {
     fetchCoupons()
   }, [])
 
-  // 根据激活的tab加载相应数据
+  // Fetch data based on active tabs
   useEffect(() => {
+    // Fetch coupons initially or when coupon tab is active
+    if (activeTab === 'coupons' || !coupons.length) {
+      fetchCoupons();
+    }
+    
+    // Fetch rules when rules tab is active
     if (activeTab === 'rules') {
       if (activeRuleTab === 'stacking') {
-        fetchStackingRules()
+        fetchStackingRules();
       } else if (activeRuleTab === 'limits') {
-        fetchLimits()
+        fetchLimits();
       } else if (activeRuleTab === 'order') {
-        fetchCoupons() // 用于选择顺序的优惠券列表
-        fetchApplicationOrder()
+        // Ensure coupons are fetched for the selector
+        if (!coupons.length) fetchCoupons(); 
+        fetchApplicationOrder();
       }
     }
-  }, [activeTab, activeRuleTab])
+  }, [activeTab, activeRuleTab]); // Removed coupons.length dependency from here
 
   // 创建新优惠券
   const handleCreateCoupon = () => {
     setSelectedCoupon(null)
-    setOpen(true)
+    setOpenCouponDialog(true)
   }
 
   // 编辑优惠券
   const handleEditCoupon = (coupon: Coupon) => {
     setSelectedCoupon(coupon)
-    setOpen(true)
+    setOpenCouponDialog(true)
   }
 
   // 删除优惠券
@@ -351,6 +377,72 @@ export default function CouponsPage() {
   const handleRemoveOrderItem = (id: string) => {
     setApplicationOrder(applicationOrder.filter(item => item.id !== id));
   }
+
+  // --- New Handlers for Stacking Rules ---
+  const handleCreateRule = (type: 'ALLOW' | 'DISALLOW') => {
+    setEditingRule(null);
+    setRuleTypeToEdit(type);
+    setOpenRuleDialog(true);
+  };
+
+  const handleEditRule = (rule: StackingRule) => {
+    setEditingRule(rule);
+    setRuleTypeToEdit(rule.rule_type);
+    setOpenRuleDialog(true);
+  };
+
+  const handleSaveRule = async (ruleData: Partial<StackingRule>) => {
+    const isEditing = !!editingRule?.id;
+    const url = isEditing ? `/api/admin/coupons/stacking-rules/${editingRule.id}` : '/api/admin/coupons/stacking-rules';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    // Ensure rule_type is included for new rules
+    const payload = isEditing ? ruleData : { ...ruleData, rule_type: ruleTypeToEdit };
+
+    try {
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || (isEditing ? '更新规则失败' : '创建规则失败'));
+      }
+
+      toast.success(isEditing ? '叠加规则已更新' : '叠加规则已创建');
+      setOpenRuleDialog(false);
+      fetchStackingRules(); // Refresh the list
+    } catch (error) {
+      console.error('Error saving stacking rule:', error);
+      toast.error(error instanceof Error ? error.message : '保存规则失败');
+    }
+  };
+
+  const handleDeleteRuleConfirm = async () => {
+    if (!ruleToDelete) return;
+    try {
+      const response = await fetch(`/api/admin/coupons/stacking-rules/${ruleToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      // DELETE returns 204 No Content on success
+      if (!response.ok && response.status !== 204) { 
+        const errorData = await response.json().catch(() => ({})); // Try to parse error, default empty
+        throw new Error(errorData.error || '删除规则失败');
+      }
+
+      toast.success('叠加规则已删除');
+      setRuleToDelete(null); // Close confirmation
+      fetchStackingRules(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting stacking rule:', error);
+      toast.error(error instanceof Error ? error.message : '删除规则失败');
+      setRuleToDelete(null); // Close confirmation even on error
+    }
+  };
+  // --- End New Handlers ---
 
   // 渲染优惠券列表页面
   const renderCouponsTab = () => (
@@ -381,38 +473,144 @@ export default function CouponsPage() {
       />
       
       <CouponFormDialog
-        open={open}
-        onOpenChange={setOpen}
+        open={openCouponDialog}
+        onOpenChange={setOpenCouponDialog}
         coupon={selectedCoupon}
         onSaved={fetchCoupons}
       />
     </div>
   )
 
-  // 渲染叠加规则配置页面
-  const renderStackingRulesTab = () => (
-    <div className="space-y-4">
-      <Heading
-        title="叠加规则配置"
-        description="设置哪些优惠券可以一起使用"
-      />
-      <Separator />
-      
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>优惠券叠加规则</CardTitle>
-          <CardDescription>
-            暂未实现
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            功能开发中，敬请期待...
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+  // Render Stacking Rules Tab
+  const renderStackingRulesTab = () => {
+    const allowRules = stackingRules.filter(rule => rule.rule_type === 'ALLOW');
+    const disallowRules = stackingRules.filter(rule => rule.rule_type === 'DISALLOW');
+
+    const renderRuleList = (rules: StackingRule[]) => {
+      if (loadingRules) {
+        return <div className="text-center py-4 text-muted-foreground">加载中...</div>;
+      }
+      if (rules.length === 0) {
+        return <div className="text-center py-4 text-muted-foreground">暂无规则，请点击上方按钮添加。</div>;
+      }
+      return (
+        <div className="space-y-3">
+          {rules.map((rule) => (
+            <Card key={rule.id} className="overflow-hidden">
+              <CardContent className="p-4 flex justify-between items-start">
+                <div className="flex-1 mr-4">
+                  <p className="font-semibold">{rule.name || '未命名规则'}</p>
+                  {rule.description && <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>}
+                  <div className="mt-2">
+                    <p className="text-xs font-medium mb-1">涉及的优惠券:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {rule.coupon_ids.length > 0 ? rule.coupon_ids.map(couponId => {
+                        const coupon = coupons.find(c => c.id === couponId);
+                        return (
+                          <Badge key={couponId} variant="secondary">
+                            {coupon ? coupon.name : `ID: ${couponId.substring(0, 6)}...`}
+                          </Badge>
+                        );
+                      }) : <span className="text-xs text-muted-foreground">无</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end space-y-1 flex-shrink-0">
+                  <Switch 
+                     checked={!!rule.is_active}
+                     onCheckedChange={(checked) => handleSaveRule({ id: rule.id, is_active: checked })} // Quick toggle
+                     className="mb-2"
+                  />
+                  <div className="flex space-x-1">
+                     <Button variant="outline" size="sm" onClick={() => handleEditRule(rule)}>
+                       <Icons.edit className="h-3 w-3 mr-1" /> 编辑
+                     </Button>
+                     <AlertDialog>
+                       <AlertDialogTrigger asChild>
+                         <Button variant="destructive" size="sm" onClick={() => setRuleToDelete(rule)}>
+                           <Icons.delete className="h-3 w-3 mr-1" /> 删除
+                         </Button>
+                       </AlertDialogTrigger>
+                       {/* Content defined later */}
+                     </AlertDialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <Heading
+          title="叠加规则配置"
+          description="设置哪些优惠券可以一起使用，哪些不能一起使用"
+        />
+        <Separator />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* ALLOW Rules Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>可叠加规则 (ALLOW)</CardTitle>
+                <CardDescription>这些规则定义了哪些优惠券可以组合使用。</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => handleCreateRule('ALLOW')}>
+                <Icons.add className="mr-2 h-4 w-4" /> 添加规则
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {renderRuleList(allowRules)}
+            </CardContent>
+          </Card>
+
+          {/* DISALLOW Rules Section */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>不可叠加规则 (DISALLOW)</CardTitle>
+                <CardDescription>这些规则定义了哪些优惠券不能同时使用。</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => handleCreateRule('DISALLOW')}>
+                 <Icons.add className="mr-2 h-4 w-4" /> 添加规则
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {renderRuleList(disallowRules)}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Form Dialog */}
+        <StackingRuleFormDialog
+          open={openRuleDialog}
+          onOpenChange={setOpenRuleDialog}
+          ruleToEdit={editingRule}
+          ruleType={ruleTypeToEdit}
+          onSuccess={fetchStackingRules}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!ruleToDelete} onOpenChange={() => setRuleToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除叠加规则?</AlertDialogTitle>
+              <AlertDialogDescription>
+                此操作无法撤销。确定要删除规则 &quot;{ruleToDelete?.name || '此规则'}&quot; 吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteRuleConfirm}>确认删除</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  };
 
   // 渲染优惠上限设置页面
   const renderLimitsTab = () => (
