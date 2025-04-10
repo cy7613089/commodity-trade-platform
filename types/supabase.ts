@@ -149,13 +149,15 @@ export type Database = {
           id: string
           is_active: boolean | null
           updated_at: string | null
+          order_config: Json | null
         }
         Insert: {
-          coupon_ids: string[]
+          coupon_ids?: string[]
           created_at?: string | null
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
+          order_config?: Json | null
         }
         Update: {
           coupon_ids?: string[]
@@ -163,6 +165,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
+          order_config?: Json | null
         }
         Relationships: []
       }
