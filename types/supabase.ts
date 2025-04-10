@@ -219,6 +219,7 @@ export type Database = {
           is_active: boolean | null
           name: string | null
           updated_at: string | null
+          rule_type: string
         }
         Insert: {
           coupon_ids: string[]
@@ -228,6 +229,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string | null
           updated_at?: string | null
+          rule_type: string
         }
         Update: {
           coupon_ids?: string[]
@@ -237,6 +239,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string | null
           updated_at?: string | null
+          rule_type?: string
         }
         Relationships: []
       }

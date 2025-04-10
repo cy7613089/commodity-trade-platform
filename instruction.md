@@ -569,6 +569,7 @@ export async function signOut() {
 - id: uuid PRIMARY KEY
 - name: text (规则名称)
 - description: text (规则描述)
+- rule_type: text (规则类型: ALLOW (可叠加), DISALLOW (不可叠加))
 - coupon_ids: uuid[] NOT NULL (可叠加使用的优惠券ID数组)
 - is_active: boolean DEFAULT true (是否启用)
 - created_at: timestamptz DEFAULT now()
