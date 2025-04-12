@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useOrderStore } from "@/lib/store/order-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ChevronLeft, AlertCircle, CheckCircle, Clock, Package, Truck, XCircle } from "lucide-react";
-import { formatPrice, safeMultiply } from "@/lib/utils/format";
+import { formatPrice, safeMultiply, safeAdd } from "@/lib/utils/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -32,8 +32,48 @@ const ORDER_STATUS_CN = {
   [ORDER_STATUS.CANCELLED]: '已取消'
 } as const;
 
-export default function OrderDetailsPage({ params }: { params: { id: string } }) {
+// 定义更完整的 OrderItem 类型 (如果 store 中没有)
+// interface OrderItem { 
+//   id: string;
+//   price: number;
+//   quantity: number;
+//   product_id?: string;
+//   product_name?: string;
+//   product_image?: string;
+//   specifications?: Record<string, string | number>; // 可选的规格
+// }
+
+// 定义更完整的 Address 类型 (如果 store 中没有)
+// interface Address {
+//   recipient_name: string;
+//   phone: string;
+//   province: string;
+//   city: string;
+//   district?: string;
+//   address: string;
+// }
+
+// 定义更完整的 Order 类型 (如果 store 中没有)
+// interface Order {
+//   id: string;
+//   order_number: string;
+//   created_at: string;
+//   payment_method: string | null;
+//   status: string;
+//   order_items: OrderItem[];
+//   total_amount: number;
+//   shipping_fee: number | null;
+//   discount_amount: number | null;
+//   final_amount: number;
+//   addresses: Address | null; // 地址可能不存在
+//   tracking_number?: string; // 可选的物流信息
+//   shipping_method?: string; // 可选的物流信息
+// }
+
+export default function OrderDetailsPage() {
   const router = useRouter();
+  const params = useParams();
+  const orderId = params.id as string;
   const { 
     currentOrder, 
     fetchOrderById, 
@@ -48,14 +88,27 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
   // 客户端组件挂载和初始化
   useEffect(() => {
     setMounted(true);
-    // 获取订单详情
-    fetchOrderById(params.id);
+    if (orderId) {
+      fetchOrderById(orderId);
+    }
     
     // 组件卸载时清理当前订单
     return () => {
       clearCurrentOrder();
     };
-  }, [fetchOrderById, clearCurrentOrder, params.id]);
+  }, [fetchOrderById, clearCurrentOrder, orderId]);
+
+  // 在组件渲染之前计算小计
+  const calculatedSubtotal = useMemo(() => {
+    // 使用可选链确保 order_items 存在
+    if (currentOrder?.order_items) {
+      return currentOrder.order_items.reduce((res, item) => 
+        // 假设 item.price 和 item.quantity 总是存在且为 number
+        safeAdd(res, safeMultiply(item.price ?? 0, item.quantity ?? 0)), 
+      0);
+    } 
+    return 0;
+  }, [currentOrder]);
 
   // 根据订单状态获取图标
   const getStatusIcon = (status: string) => {
@@ -250,16 +303,16 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                   </div>
                 </div>
                 
-                {/* 物流信息区域 - 使用类型断言处理可能不存在的属性 */}
-                {currentOrder.status === ORDER_STATUS.SHIPPED && 
-                 ((currentOrder as any).tracking_number || (currentOrder as any).shipping_method) && (
+                {/* 物流信息区域 - 使用可选链和空值合并 */}
+                {currentOrder?.status === ORDER_STATUS.SHIPPED && 
+                 (currentOrder?.tracking_number || currentOrder?.shipping_method) && (
                   <div className="mt-4 p-3 bg-blue-50 rounded-md">
                     <p className="text-sm font-medium text-blue-700">物流信息</p>
-                    {(currentOrder as any).tracking_number && (
-                      <p className="text-sm">物流单号：{(currentOrder as any).tracking_number}</p>
+                    {currentOrder?.tracking_number && (
+                      <p className="text-sm">物流单号：{currentOrder.tracking_number}</p>
                     )}
-                    {(currentOrder as any).shipping_method && (
-                      <p className="text-sm">物流公司：{(currentOrder as any).shipping_method}</p>
+                    {currentOrder?.shipping_method && (
+                      <p className="text-sm">物流公司：{currentOrder.shipping_method}</p>
                     )}
                   </div>
                 )}
@@ -271,12 +324,14 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
               <CardContent className="pt-6">
                 <h2 className="text-xl font-semibold mb-4">商品信息</h2>
                 <div className="space-y-4">
-                  {currentOrder.order_items.map((item) => (
+                  {/* 使用可选链确保 order_items 存在 */}
+                  {currentOrder?.order_items?.map((item) => (
                     <div key={item.id} className="flex items-start space-x-4 py-4 border-b last:border-0">
                       <div className="h-24 w-24 overflow-hidden rounded-md border">
                         <Image
+                          // 提供默认图片和 alt
                           src={item.product_image || "/placeholder-product.jpg"}
-                          alt={item.product_name || "商品"}
+                          alt={item.product_name || "商品图片"}
                           width={96}
                           height={96}
                           className="h-full w-full object-cover"
@@ -284,21 +339,24 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium">{item.product_name}</div>
-                        {/* 使用类型断言处理可能不存在的规格信息 */}
-                        {(item as any).specifications && (
+                        {/* 提供默认名称 */}
+                        <div className="font-medium">{item.product_name ?? '商品名称待定'}</div>
+                        {/* 移除 as any，直接使用可选链和类型检查 */}
+                        {item?.specifications && typeof item.specifications === 'object' && Object.keys(item.specifications).length > 0 && (
                           <div className="text-sm text-muted-foreground mt-1">
-                            {Object.entries((item as any).specifications).map(([key, value]) => (
-                              <span key={key} className="mr-2">{key}: {String(value)}</span>
+                            {/* 移除 as any */}
+                            {Object.entries(item.specifications).map(([key, value]) => (
+                              <span key={key} className="mr-2">{key}: {String(value ?? '')}</span> // 确保 value 转为 string
                             ))}
                           </div>
                         )}
                       </div>
                       
                       <div className="text-right min-w-[100px]">
-                        <div className="font-medium">¥{formatPrice(item.price)}</div>
-                        <div className="text-sm text-muted-foreground">x {item.quantity}</div>
-                        <div className="font-semibold mt-1">¥{formatPrice(safeMultiply(item.price, item.quantity))}</div>
+                        {/* 提供默认价格和数量 */}
+                        <div className="font-medium">¥{formatPrice(item.price ?? 0)}</div>
+                        <div className="text-sm text-muted-foreground">x {item.quantity ?? 0}</div>
+                        <div className="font-semibold mt-1">¥{formatPrice(safeMultiply(item.price ?? 0, item.quantity ?? 0))}</div>
                       </div>
                     </div>
                   ))}
@@ -313,11 +371,14 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
             <Card>
               <CardContent className="pt-6">
                 <h2 className="text-xl font-semibold mb-4">收货信息</h2>
-                {currentOrder.addresses ? (
+                {/* 使用可选链访问地址信息 */}
+                {currentOrder?.addresses ? (
                   <div className="space-y-2">
-                    <p><span className="text-muted-foreground">收货人：</span>{currentOrder.addresses.recipient_name}</p>
-                    <p><span className="text-muted-foreground">联系电话：</span>{currentOrder.addresses.phone}</p>
-                    <p><span className="text-muted-foreground">收货地址：</span>{currentOrder.addresses.province} {currentOrder.addresses.city} {currentOrder.addresses.district || ''} {currentOrder.addresses.address}</p>
+                    <p><span className="text-muted-foreground">收货人：</span>{currentOrder.addresses.recipient_name ?? '-'}</p>
+                    <p><span className="text-muted-foreground">联系电话：</span>{currentOrder.addresses.phone ?? '-'}</p>
+                    <p><span className="text-muted-foreground">收货地址：</span>
+                      {`${currentOrder.addresses.province ?? ''} ${currentOrder.addresses.city ?? ''} ${currentOrder.addresses.district ?? ''} ${currentOrder.addresses.address ?? '-'}`.trim()}
+                    </p>
                   </div>
                 ) : (
                   <p className="text-muted-foreground">暂无收货信息</p>
@@ -332,7 +393,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">商品金额</span>
-                    <span>¥{formatPrice(currentOrder.total_amount)}</span>
+                    <span>¥{formatPrice(calculatedSubtotal)}</span>
                   </div>
                   {currentOrder.shipping_fee !== undefined && currentOrder.shipping_fee !== null && (
                     <div className="flex justify-between">

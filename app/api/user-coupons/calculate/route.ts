@@ -109,32 +109,12 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // 确定优惠券应用顺序
-    let orderedCoupons = [...userCoupons];
-    if (applicationOrder && applicationOrder.coupon_ids) {
-      // 根据预定义的顺序排序优惠券
-      orderedCoupons.sort((a, b) => {
-        const aIndex = applicationOrder.coupon_ids.indexOf(a.coupon_id);
-        const bIndex = applicationOrder.coupon_ids.indexOf(b.coupon_id);
-        
-        // 如果一个在列表中而另一个不在，有索引的优先
-        if (aIndex === -1 && bIndex !== -1) return 1;
-        if (aIndex !== -1 && bIndex === -1) return -1;
-        
-        // 如果都在列表中，按索引排序
-        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-        
-        // 如果都不在列表中，保持原顺序
-        return 0;
-      });
-    }
-    
     // 计算优惠金额
     let remainingAmount = order_amount;
     let totalDiscount = 0;
     const discountDetails = [];
     
-    for (const userCoupon of orderedCoupons) {
+    for (const userCoupon of userCoupons) {
       const coupon = userCoupon.coupon;
       let discountAmount = 0;
       

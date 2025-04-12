@@ -167,8 +167,7 @@ export async function PUT(request: NextRequest) {
         // 直接存储前端发送的包含 { id, name, type } 的数组
         order_config: applicationOrder, 
         is_active: true,
-        updated_at: new Date().toISOString(),
-        coupon_ids: [] // 保留兼容性
+        updated_at: new Date().toISOString()
       });
     
     return NextResponse.json({ 

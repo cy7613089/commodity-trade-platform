@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
-  ShoppingCart,
   BadgePercent,
   TruckIcon,
 } from "lucide-react";
@@ -14,187 +13,232 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useCartStore } from "@/lib/store/cart-store";
-import { formatPrice, safeMultiply, safeSubtract } from "@/lib/utils/format";
+import { formatPrice, safeMultiply, safeSubtract, safeAdd } from "@/lib/utils/format";
 import AddressSelector from "@/components/checkout/address-selector";
 import PaymentMethod from "@/components/checkout/payment-method";
 import CouponSelector from "@/components/cart/coupon-selector";
 import { toast } from "sonner";
 
+// 定义订单详情和订单项类型
+interface OrderItem {
+  id: string;
+  product_id: string;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+}
+
+interface OrderDetails {
+  id: string;
+  order_items: OrderItem[];
+  final_amount: number;
+}
+
+// 修改CartItem类型定义
+interface CartItem {
+  product_id: string;
+  quantity: number;
+  price: number;
+}
+
+// 订单项API响应接口
+interface OrderItemResponse {
+  id: string;
+  product_id?: string;
+  product_name?: string;
+  product_image?: string;
+  price: number;
+  quantity: number;
+  products?: {
+    id: string;
+    name: string;
+    images: string[] | string;
+  };
+}
+
 export default function CheckoutPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const orderId = searchParams.get("orderId");
+  const orderId = searchParams.get('orderId');
+  
+  const { items } = useCartStore();
   
   const [mounted, setMounted] = useState(false);
-  const [selectedAddress, setSelectedAddress] = useState("");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("alipay");
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [couponDiscount, setCouponDiscount] = useState(0);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
-  const router = useRouter();
-  
-  // 从购物车状态获取数据
-  const {
-    items,
-    getTotalPrice,
-    getTotalOriginalPrice,
-    clearCart
-  } = useCartStore();
-  
-  // 加载订单详情
+  // 更新cartItems的创建方式，确保使用productId而不是id
+  const cartItems = useMemo<CartItem[]>(() => {
+    // 如果有订单数据，使用订单中的商品
+    if (orderDetails && orderDetails.order_items.length > 0) {
+      return orderDetails.order_items.map(item => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        price: item.price
+      }));
+    }
+    // 否则使用购物车中的商品
+    return items.map(item => ({
+      product_id: item.productId,
+      quantity: item.quantity,
+      price: item.price
+    }));
+  }, [items, orderDetails]);
+
+  // 获取订单数据
   useEffect(() => {
-    const fetchOrderDetails = async () => {
+    async function fetchOrderDetails() {
       if (!orderId) return;
       
       try {
+        setIsLoading(true);
         const response = await fetch(`/api/orders/${orderId}`);
+        
         if (!response.ok) {
-          throw new Error("获取订单详情失败");
+          const error = await response.json();
+          throw new Error(error.message || "获取订单数据失败");
         }
         
         const data = await response.json();
-        setOrderDetails(data);
         
-        // 如果有地址，设置默认选中
-        if (data.address_id) {
-          setSelectedAddress(data.address_id);
+        // 处理嵌套的订单项数据结构
+        if (data.order_items && Array.isArray(data.order_items)) {
+          // 转换订单项结构，确保包含product_id
+          const formattedOrderItems = data.order_items.map((item: OrderItemResponse) => ({
+            id: item.id,
+            product_id: item.product_id || (item.products?.id || ''), // 从嵌套的products获取id
+            name: item.product_name || (item.products?.name || ''),
+            image: item.product_image || (item.products?.images ? 
+              (Array.isArray(item.products.images) ? item.products.images[0] : item.products.images) : 
+              '/products/placeholder.png'),
+            price: item.price,
+            quantity: item.quantity
+          }));
+          
+          setOrderDetails({
+            ...data,
+            order_items: formattedOrderItems
+          });
+        } else {
+          setOrderDetails(data);
         }
       } catch (error) {
-        console.error("获取订单详情失败:", error);
-        toast.error("获取订单详情失败，请返回购物车重试");
+        console.error("获取订单数据失败:", error);
+        toast.error("获取订单数据失败，请重试");
       } finally {
         setIsLoading(false);
       }
-    };
+    }
     
     if (orderId) {
       fetchOrderDetails();
-    } else {
-      setIsLoading(false);
     }
   }, [orderId]);
+
+  // 计算小计
+  const subtotal = useMemo(() => {
+    if (orderDetails) {
+      // 如果有订单数据，计算订单商品总额
+      return orderDetails.order_items.reduce((acc, item) => {
+        return safeAdd(acc, safeMultiply(item.price, item.quantity));
+      }, 0);
+    }
+    // 否则计算购物车商品总额
+    return items.reduce((acc, item) => {
+      return safeAdd(acc, safeMultiply(item.price, item.quantity));
+    }, 0);
+  }, [items, orderDetails]);
+
+  // 计算最终金额
+  const finalAmount = useMemo(() => {
+    return safeSubtract(subtotal, discountAmount);
+  }, [subtotal, discountAmount]);
+
+  // 显示商品项
+  const displayItems = orderDetails?.order_items || items;
   
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 防止hydration不匹配
   if (!mounted) {
-    return <div className="container mx-auto py-10">正在加载...</div>;
+    return null;
   }
 
-  // 如果没有订单ID，重定向到购物车页面
-  if (!orderId && !isLoading) {
-    return (
-      <div className="container mx-auto py-10">
-        <div className="mb-6">
-          <Link href="/cart">
-            <Button variant="ghost" className="flex items-center gap-1">
-              <ChevronLeft className="h-4 w-4" />
-              返回购物车
-            </Button>
-          </Link>
-        </div>
-        
-        <div className="flex flex-col items-center justify-center py-20">
-          <ShoppingCart className="mb-4 h-16 w-16 text-muted-foreground" />
-          <h2 className="mb-2 text-2xl font-semibold">未找到订单信息</h2>
-          <p className="mb-6 text-center text-muted-foreground">
-            请先返回购物车，选择商品进行结算
-          </p>
-          <Link href="/cart">
-            <Button>返回购物车</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  // 处理优惠券选择
+  const handleCouponSelect = (couponIds: string[], discount: number) => {
+    setSelectedCoupons(couponIds);
+    setDiscountAmount(discount);
+  };
 
-  // 计算金额
-  const subtotal = orderDetails ? orderDetails.final_amount - orderDetails.shipping_fee : getTotalPrice();
-  const originalPrice = orderDetails ? orderDetails.total_amount : getTotalOriginalPrice();
-  const productDiscount = orderDetails ? orderDetails.discount_amount : safeSubtract(originalPrice, subtotal);
-  
-  // 配送费 (示例: 订单金额满99元免运费，否则10元运费)
-  const shippingFee = orderDetails ? orderDetails.shipping_fee : (subtotal >= 99 ? 0 : 10);
-  
-  // 最终价格 = 商品总价 - 优惠券折扣 + 配送费
-  const finalPrice = orderDetails 
-    ? orderDetails.final_amount 
-    : safeSubtract(subtotal, couponDiscount) + shippingFee;
-
-  // 处理订单提交
+  // 处理提交订单 (现在改为处理更新订单金额)
   const handleSubmitOrder = async () => {
-    // 基本验证
-    if (!selectedAddress) {
-      toast.error("请选择收货地址");
-      return;
-    }
-
-    if (!selectedPaymentMethod) {
-      toast.error("请选择支付方式");
+    // 1. 检查 orderId 是否存在
+    if (!orderId) {
+      toast.error("订单ID丢失，无法更新订单");
       return;
     }
 
     try {
       setIsSubmitting(true);
+      
+      // 2. 准备更新数据 (只包含金额)
+      const updateData = {
+        discount_amount: discountAmount,
+        final_amount: finalAmount, // 使用计算好的 finalAmount
+        // 可选：如果需要传递支付方式到下一页，可以在这里准备
+        // payment_method: selectedPaymentMethod
+      };
+      
+      // 移除创建订单用的 orderData 准备
+      /* const orderData = {
+        address_id: selectedAddress, // 修复硬编码 null
+        // ...其他字段...
+      };*/
 
-      // 如果有订单ID，则更新订单状态
-      if (orderId) {
-        // 更新订单状态为"待发货"
-        const response = await fetch(`/api/orders/${orderId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: "PENDING_SHIPMENT",
-            payment_method: selectedPaymentMethod,
-            payment_status: "paid",
-            address_id: selectedAddress,
-          }),
-        });
+      // 3. 调用 PUT /api/orders/[id] 更新订单金额
+      const response = await fetch(`/api/orders/${orderId}`, { // 使用 orderId
+        method: 'PUT', // <--- 改为 PUT
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData), // 发送更新数据
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "更新订单状态失败");
-        }
-
-        // 清空购物车
-        await clearCart();
-
-        // 跳转到支付模拟页面
-        router.push(`/checkout/payment?orderId=${orderId}&amount=${finalPrice}&method=${selectedPaymentMethod}`);
-      } else {
-        // 没有订单ID的异常情况处理
-        toast.error("没有找到订单信息，请返回购物车重试");
-        setIsSubmitting(false);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "更新订单金额失败");
       }
+
+      // 暂时注释掉未使用的 updatedOrder
+      // const updatedOrder = await response.json();
+      // 可选：可以根据 updatedOrder 更新本地状态，如果需要的话
+      // setOrderDetails(updatedOrder);
+      
+      // 4. 移除清空购物车的逻辑
+      // clearCart();
+      
+      // 5. 跳转到订单详情页面
+      router.push(`/orders/${orderId}`); // <--- 修正跳转地址
+      toast.success("订单金额已更新，正在跳转到订单详情...");
+
     } catch (error) {
-      console.error("提交订单失败:", error);
-      toast.error(error instanceof Error ? error.message : "提交订单失败，请稍后重试");
+      console.error("更新订单失败:", error);
+      toast.error(error instanceof Error ? error.message : "更新订单失败，请重试");
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 处理优惠券选择
-  const handleCouponSelect = (couponIds: string[]) => {
-    setSelectedCoupons(couponIds);
-    
-    // 简单优惠券计算逻辑示例
-    if (couponIds.length > 0) {
-      // 这里简化处理，假设选择了优惠券后有20元优惠
-      // 实际应用中应该根据选择的具体优惠券计算折扣
-      setCouponDiscount(20);
-    } else {
-      setCouponDiscount(0);
-    }
+  // 新增：表单提交处理函数
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); // 阻止默认提交
+    handleSubmitOrder();   // 调用实际的订单处理逻辑
   };
-
-  // 显示商品项
-  const displayItems = orderDetails?.order_items || items;
 
   return (
     <div className="container mx-auto py-10">
@@ -209,117 +253,127 @@ export default function CheckoutPage() {
 
       <h1 className="mb-6 text-3xl font-bold">结算</h1>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* 左侧：收货地址、支付方式和优惠券 */}
-        <div className="lg:col-span-2 space-y-6">
-          <AddressSelector onAddressSelect={setSelectedAddress} selectedAddressId={selectedAddress} />
-          <PaymentMethod onMethodSelect={setSelectedPaymentMethod} />
-          <CouponSelector total={subtotal} onCouponSelect={handleCouponSelect} />
-        </div>
+      {/* 使用 form 包裹主要内容 */}
+      <form onSubmit={handleFormSubmit}>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          {/* 左侧：收货地址、支付方式和优惠券 */}
+          <div className="lg:col-span-2 space-y-6">
+            <AddressSelector onAddressSelect={() => {}} />
+            <PaymentMethod onMethodSelect={() => {}} />
+            {isLoading ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>优惠券</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-center p-4">
+                    <p className="text-muted-foreground">正在加载订单数据...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <CouponSelector 
+                cartItems={cartItems} 
+                total={subtotal} 
+                onCouponSelect={handleCouponSelect} 
+              />
+            )}
+          </div>
 
-        {/* 右侧：订单摘要 */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>订单摘要</CardTitle>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {/* 商品列表 */}
-              <div>
-                <h3 className="mb-2 font-medium">订单商品 ({displayItems.length})</h3>
-                <div className="max-h-[250px] overflow-y-auto rounded-md border">
-                  {displayItems.map((item: any) => (
-                    <div key={item.id} className="flex items-center gap-3 border-b p-3 last:border-0">
-                      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border">
-                        <Image
-                          src={item.product_image || item.image || '/placeholder.svg'}
-                          alt={item.product_name || item.name || '商品图片'}
-                          width={64}
-                          height={64}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <h4 className="text-sm font-medium line-clamp-1">{item.product_name || item.name}</h4>
-                        <div className="flex items-center justify-between text-sm text-muted-foreground">
-                          <span>¥{formatPrice(item.price)} x {item.quantity}</span>
-                          <span>¥{formatPrice(safeMultiply(item.price, item.quantity))}</span>
+          {/* 右侧：订单摘要 */}
+          <div>
+            <Card>
+              <CardHeader>
+                <CardTitle>订单摘要</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoading ? (
+                  <div className="py-8 text-center">
+                    <p className="text-muted-foreground">正在加载订单数据...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="max-h-[300px] overflow-y-auto space-y-3">
+                      {displayItems.map((item) => (
+                        <div key={item.id} className="flex items-start space-x-3">
+                          <div className="relative h-16 w-16 overflow-hidden rounded-md">
+                            <Image
+                              src={item.image || "/products/placeholder.png"}
+                              alt={item.name}
+                              className="object-cover"
+                              fill
+                              sizes="64px"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium">{item.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              数量: {item.quantity} × ¥{formatPrice(item.price)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">
+                              ¥{formatPrice(safeMultiply(item.price, item.quantity))}
+                            </p>
+                          </div>
                         </div>
+                      ))}
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">小计</span>
+                        <span>¥{formatPrice(subtotal)}</span>
+                      </div>
+                      {discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-green-600">
+                          <span className="text-sm flex items-center gap-1 font-medium">
+                            <BadgePercent className="h-4 w-4" />
+                            优惠金额
+                          </span>
+                          <span className="font-medium">-¥{formatPrice(discountAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm flex items-center gap-1">
+                          <TruckIcon className="h-3.5 w-3.5" />
+                          运费
+                        </span>
+                        <span>¥0.00</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* 价格计算 */}
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">商品总额</span>
-                  <span>¥{formatPrice(originalPrice)}</span>
-                </div>
-                
-                {productDiscount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span className="flex items-center gap-1">
-                      <BadgePercent className="h-4 w-4" />
-                      商品折扣
-                    </span>
-                    <span>-¥{formatPrice(productDiscount)}</span>
-                  </div>
-                )}
-                
-                {couponDiscount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span className="flex items-center gap-1">
-                      <BadgePercent className="h-4 w-4" />
-                      优惠券折扣
-                    </span>
-                    <span>-¥{formatPrice(couponDiscount)}</span>
-                  </div>
-                )}
-                
-                <div className="flex justify-between">
-                  <span className="flex items-center gap-1">
-                    <TruckIcon className="h-4 w-4" />
-                    配送费
-                  </span>
-                  {shippingFee > 0 ? (
-                    <span>¥{formatPrice(shippingFee)}</span>
-                  ) : (
-                    <span className="text-green-600">免运费</span>
-                  )}
-                </div>
-              </div>
+                    <Separator />
 
-              <Separator />
-              
-              <div className="flex justify-between font-medium">
-                <span>应付金额</span>
-                <span className="text-xl text-primary">¥{formatPrice(finalPrice)}</span>
-              </div>
-              
-              {/* 订单备注 (可选) */}
-              <div className="rounded-md bg-muted/30 p-3 text-sm">
-                <p className="text-muted-foreground">
-                  下单即表示您同意<Link href="/terms" className="text-primary underline">《用户协议》</Link>和<Link href="/privacy" className="text-primary underline">《隐私政策》</Link>
-                </p>
-              </div>
-            </CardContent>
-            
-            <CardFooter>
-              <Button 
-                className="w-full"
-                size="lg"
-                disabled={isSubmitting}
-                onClick={handleSubmitOrder}
-              >
-                {isSubmitting ? "提交中..." : "提交订单"}
-              </Button>
-            </CardFooter>
-          </Card>
+                    <div className="flex items-center justify-between font-semibold">
+                      <span>总计</span>
+                      <span>¥{formatPrice(finalAmount)}</span>
+                    </div>
+
+                    {selectedCoupons.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground text-right">
+                        已应用 {selectedCoupons.length} 张优惠券
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={isSubmitting || displayItems.length === 0 || isLoading}
+                >
+                  {isSubmitting ? "处理中..." : "提交订单"}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 } 

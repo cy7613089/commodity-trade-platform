@@ -63,7 +63,6 @@ export interface Coupon {
   min_purchase: number;
   max_discount: number | null;
   usage_limit: number | null;
-  start_date: string | Date;
   end_date: string | Date;
   is_active: boolean;
   color: string;

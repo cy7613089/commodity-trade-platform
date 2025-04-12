@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/types/supabase';
-import { CartItem } from '@/lib/store/cart-store'; // 确保此类型已定义并导入
 
 // --- Helper Functions ---
 // 创建普通Supabase客户端
@@ -11,6 +10,7 @@ function createClient() {
 }
 
 // 创建具有管理员权限的Supabase客户端 (仅在需要时使用)
+/* // 不再需要，因为库存更新已禁用
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -27,21 +27,7 @@ function createAdminClient() {
     }
   );
 }
-
-// 获取用户角色 (示例, 需要根据你的实现调整)
-async function getUserRole(userId: string): Promise<string | null> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single();
-    if (error || !data) {
-        console.error(`Error fetching role for user ${userId}:`, error);
-        return null;
-    }
-    return data.role;
-}
+*/
 
 // --- API Route Handlers ---
 
@@ -52,7 +38,6 @@ async function getUserRole(userId: string): Promise<string | null> {
  */
 export async function POST(request: Request) {
   const supabase = createClient();
-  let supabaseAdmin: ReturnType<typeof createAdminClient> | null = null; // 延迟初始化
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -66,13 +51,14 @@ export async function POST(request: Request) {
     try {
         body = await request.json();
     } catch (e) {
+        console.error('Error parsing request body:', e);
         return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
-    const { address_id, payment_method, notes, coupon_code } = body; // 增加coupon_code
+    const { payment_method, notes, coupon_code } = body; // 去掉了address_id
 
-    if (!address_id || typeof address_id !== 'string') {
-      return NextResponse.json({ error: 'Invalid or missing required field: address_id (string)' }, { status: 400 });
-    }
+    // if (!address_id || typeof address_id !== 'string') {
+    //   return NextResponse.json({ error: 'Invalid or missing required field: address_id (string)' }, { status: 400 });
+    // }
     if (!payment_method || typeof payment_method !== 'string') {
       return NextResponse.json({ error: 'Invalid or missing required field: payment_method (string)' }, { status: 400 });
     }
@@ -84,6 +70,7 @@ export async function POST(request: Request) {
     }
 
     // 2. 验证收货地址是否属于该用户
+    /*
     const { data: addressData, error: addressError } = await supabase
         .from('addresses')
         .select('id')
@@ -98,12 +85,12 @@ export async function POST(request: Request) {
     if (!addressData) {
         return NextResponse.json({ error: 'Invalid or unauthorized address ID' }, { status: 400 });
     }
-
+    */
 
     // 3. 获取用户购物车中选中的商品及产品信息
     const { data: cart, error: cartError } = await supabase
       .from('carts')
-      .select('id, cart_items(id, quantity, selected, products(id, name, price, stock, image))')
+      .select('id, cart_items(id, quantity, selected, products(id, name, price, stock, images))')
       .eq('user_id', userId)
       .single();
 
@@ -115,7 +102,16 @@ export async function POST(request: Request) {
          return NextResponse.json({ error: 'Cart not found' }, { status: 404 });
     }
 
+    // 检查从数据库获取的 cart_items
+    console.log('--- Raw Cart Items from DB ---');
+    console.log(JSON.stringify(cart?.cart_items, null, 2));
+
     const selectedCartItems = cart.cart_items.filter(item => item.selected && item.products);
+
+    // 打印过滤后的结果
+    console.log('--- Filtered Selected Cart Items ---');
+    console.log(JSON.stringify(selectedCartItems, null, 2));
+    console.log(`Found ${selectedCartItems.length} selected items.`);
 
     if (selectedCartItems.length === 0) {
       return NextResponse.json({ error: 'No items selected in cart' }, { status: 400 });
@@ -147,12 +143,13 @@ export async function POST(request: Request) {
       }
 
       const subtotal = price * item.quantity;
+      // TODO: 考虑使用 decimal.js 或类似库处理货币计算以避免浮点精度问题。
       totalAmount += subtotal;
 
       orderItemsData.push({
         product_id: product.id,
         product_name: product.name,
-        product_image: product.image,
+        product_image: Array.isArray(product.images) && typeof product.images[0] === 'string' ? product.images[0] : null,
         quantity: item.quantity,
         price: price,
         original_price: price, // TODO: 实际应从产品获取原价
@@ -193,7 +190,7 @@ export async function POST(request: Request) {
         status: 'PENDING_PAYMENT',
         payment_method: payment_method,
         payment_status: 'unpaid',
-        address_id: address_id,
+        address_id: null, // address_id
         shipping_fee: shippingFee,
         notes: notes ?? null,
       })
@@ -223,11 +220,14 @@ export async function POST(request: Request) {
     }
 
     // 8. 更新产品库存 (需要Admin权限)
+    /*  // --- 开始注释掉库存更新逻辑 ---
     try {
         supabaseAdmin = createAdminClient();
         // 使用数据库函数来原子性地更新库存是最佳实践
         // 此处使用循环更新作为示例，但非原子操作
         for (const update of stockUpdates) {
+            // 使用 @ts-expect-error 并保持注释
+            // @ts-expect-error - HACK: Linter reports this RPC doesn't exist in generated types. Verify 'adjust_product_stock' function exists in Supabase DB and its parameters match. Consider regenerating Supabase types.
             const { error: stockUpdateError } = await supabaseAdmin.rpc('adjust_product_stock', {
                 product_uuid: update.id,
                 quantity_change: update.quantityChange
@@ -248,6 +248,23 @@ export async function POST(request: Request) {
         // TODO: 尝试恢复库存 (可能需要额外逻辑)
         return NextResponse.json({ error: 'Failed to update product stock, order creation rolled back (partially?). Please try again.' }, { status: 500 });
     }
+    */ // --- 结束注释掉库存更新逻辑 ---
+    // TODO: [重要] 库存更新已禁用! 需要在 Supabase 中创建或修复名为 `adjust_product_stock(product_uuid uuid, quantity_change int)` 的数据库函数,
+    // 然后取消注释上面的 try...catch 块以重新启用库存更新。
+    // 示例 SQL 函数:
+    // CREATE OR REPLACE FUNCTION adjust_product_stock(product_uuid uuid, quantity_change int)
+    // RETURNS void AS $$
+    // BEGIN
+    //   UPDATE public.products
+    //   SET stock = stock + quantity_change
+    //   WHERE id = product_uuid AND stock >= -quantity_change; -- 防止库存变为负数 (如果 quantity_change 为负)
+    //   IF NOT FOUND THEN
+    //       RAISE EXCEPTION 'Product % not found or insufficient stock for change %', product_uuid, quantity_change;
+    //   END IF;
+    // END;
+    // $$ LANGUAGE plpgsql SECURITY DEFINER;
+    // ALTER FUNCTION adjust_product_stock(uuid, integer) OWNER TO postgres; -- 确保所有权
+    // GRANT EXECUTE ON FUNCTION public.adjust_product_stock(uuid, integer) TO service_role; -- 授予执行权限
 
     // 9. 从购物车中删除已下单的商品
     const itemIdsToDelete = selectedCartItems.map(item => item.id);
@@ -271,7 +288,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Unexpected error during order creation:', error);
-    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
+    // 直接记录错误，不再创建 message 变量
     // 避免在生产中暴露过多细节
     return NextResponse.json({ error: 'Internal server error during order creation.' }, { status: 500 });
   }
@@ -337,8 +354,9 @@ export async function GET(request: Request) { // 另写一个接口实现管理�
     const { data: orders, error, count } = await query;
 
     if (error) {
-      console.error('Fetch orders error:', error);
-      return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+      console.error('Error fetching orders:', error);
+      // 直接在 NextResponse 中使用 error.message
+      return NextResponse.json({ error: 'Failed to fetch orders', details: error.message || 'Unknown error' }, { status: 500 });
     }
 
     // 计算分页信息
@@ -356,6 +374,7 @@ export async function GET(request: Request) { // 另写一个接口实现管理�
 
   } catch (error) {
     console.error('Fetch orders error:', error);
+    // 直接记录错误
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

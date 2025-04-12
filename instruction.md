@@ -594,10 +594,30 @@ export async function signOut() {
 ```
 优惠券应用顺序表
 - id: uuid PRIMARY KEY
-- coupon_ids: uuid[] NOT NULL (按应用顺序排列的优惠券ID数组)
+- order_config: jsonb NOT NULL (应用顺序排列的优惠券{id,name,type}对象数组，JSON格式)
 - is_active: boolean DEFAULT true (是否启用)
 - created_at: timestamptz DEFAULT now()
 - updated_at: timestamptz DEFAULT now()
+```
+order_config字段示例：
+```
+[
+  {
+    "id": "095de5e6-7e3c-47c0-907e-22596901750b",
+    "name": "满减券阶梯式",
+    "type": "amount"
+  },
+  {
+    "id": "76be2a81-ec3d-425f-b47b-a19f01ef02f4",
+    "name": "商品券按金额",
+    "type": "product"
+  },
+  {
+    "id": "52ea4ec3-8b27-4c1c-9f7a-ba2c138ee70a",
+    "name": "商品券按比例",
+    "type": "product"
+  }
+]
 ```
 
 ##### carts 表（购物车表）
@@ -686,10 +706,6 @@ CREATE INDEX idx_coupon_rules_is_active ON coupon_rules(is_active);
 -- 优惠券叠加规则表索引
 CREATE INDEX idx_coupon_stacking_rules_is_active ON coupon_stacking_rules(is_active);
 CREATE INDEX idx_coupon_stacking_rules_coupon_ids ON coupon_stacking_rules USING GIN(coupon_ids);
-
--- 优惠券应用顺序表索引
-CREATE INDEX idx_coupon_application_order_coupon_ids ON coupon_application_order USING GIN(coupon_ids);
-```
 
 #### 2.2.4 数据访问策略
 
@@ -845,6 +861,12 @@ Server Actions:
   - '不可叠加使用'部分支持设置哪些优惠券不可以叠加使用，可以添加不止一条规则
   - 规则表单支持规则名称、描述、选择多个优惠券以及激活状态的设置
   - 提供检查API接口和Hook工具，验证多个优惠券是否可以一起使用
+具体使用原则：
+- 如果用户选择了一张优惠券 A，而优惠券 B 与 A 存在于同一个 DISALLOW 规则中，则 B 会被禁用。
+- 如果用户选择了一张或多张优惠券（集合 S），并且存在一个 ALLOW 规则 R 包含了集合 S 中的所有优惠券：
+  - 那么，任何不在规则 R 中的优惠券 C 都会被禁用（显示 "不符合当前已选组合的叠加规则"）。
+  - 任何与集合 S 中某张券存在 DISALLOW 冲突的券 D 也会被禁用。
+- 如果用户选择的组合 S 不被任何一个 ALLOW 规则完全包含，那么选择器不会额外根据 ALLOW 规则禁用其他选项（但 DISALLOW 规则仍然有效）。
 
 - **优惠上限设置**：
   - 支持设置订单最大优惠比例（如不超过订单金额的50%）

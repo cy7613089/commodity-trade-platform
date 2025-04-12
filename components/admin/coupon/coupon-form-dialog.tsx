@@ -110,6 +110,19 @@ interface CouponFormDialogProps {
   onSaved: () => void;
 }
 
+// 辅助函数，用于安全获取 coupon_rule 中的属性
+function getCouponRuleProp<K extends keyof CouponRule>(
+  rule: Coupon['coupon_rule'], 
+  key: K, 
+  defaultValue: NonNullable<CouponRule[K]>
+): NonNullable<CouponRule[K]> {
+  if (rule && typeof rule === 'object' && key in rule) {
+    const value = (rule as Record<K, unknown>)[key];
+    return value === null || value === undefined ? defaultValue : value as NonNullable<CouponRule[K]>;
+  }
+  return defaultValue;
+}
+
 export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: CouponFormDialogProps) {
   // 状态管理
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -165,42 +178,25 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
   // 设置表单初始值
   useEffect(() => {
     if (coupon) {
-      const endDate = typeof coupon.end_date === 'string'
-        ? new Date(coupon.end_date)
-        : coupon.end_date;
-      
-      const defaultRule: CouponRule = {
-        product_ids: [],
-        min_quantity: 1,
-        time_type: 'fixed' as const,
-        fixed_dates: [],
-        time_ranges: [],
-        tiers: [{ min_amount: 0, discount: 0 }]
-      };
-
-      const couponRule = coupon.coupon_rule 
-        ? { ...defaultRule, ...coupon.coupon_rule as CouponRule }
-        : defaultRule;
-
+      const rule = coupon.coupon_rule; // 方便引用
       form.reset({
-        name: coupon.name,
-        type: coupon.type,
-        discount_type: coupon.discount_type,
-        value: coupon.value,
-        end_date: endDate,
-        is_active: coupon.is_active,
-        coupon_rule: couponRule
+        name: coupon.name || '',
+        type: coupon.type as 'product' | 'time' | 'amount',
+        discount_type: coupon.discount_type as 'fixed' | 'percentage',
+        value: coupon.value || 0,
+        end_date: coupon.end_date ? new Date(coupon.end_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        is_active: coupon.is_active ?? true,
+        coupon_rule: {
+            tiers: getCouponRuleProp(rule, 'tiers', [{ min_amount: 0, discount: 0 }]),
+            product_ids: getCouponRuleProp(rule, 'product_ids', []),
+            time_ranges: getCouponRuleProp(rule, 'time_ranges', []),
+            fixed_dates: getCouponRuleProp(rule, 'fixed_dates', []),
+            recurring: getCouponRuleProp(rule, 'recurring', { days_of_week: [], time_ranges: [] }),
+            min_quantity: getCouponRuleProp(rule, 'min_quantity', 1),
+            time_type: getCouponRuleProp(rule, 'time_type', 'fixed'),
+        },
       });
     } else {
-      const defaultRule: CouponRule = {
-        product_ids: [],
-        min_quantity: 1,
-        time_type: 'fixed' as const,
-        fixed_dates: [],
-        time_ranges: [],
-        tiers: [{ min_amount: 0, discount: 0 }]
-      };
-
       form.reset({
         name: '',
         type: 'amount',
@@ -208,10 +204,17 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
         value: 0,
         end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         is_active: true,
-        coupon_rule: defaultRule
+        coupon_rule: {
+          product_ids: [],
+          min_quantity: 1,
+          time_type: 'fixed' as const,
+          fixed_dates: [],
+          time_ranges: [],
+          tiers: [{ min_amount: 0, discount: 0 }]
+        }
       });
     }
-  }, [coupon, form]);
+  }, [coupon, form, open]);
 
   // 处理表单提交
   const onSubmit = async (values: FormValues) => {
@@ -227,7 +230,8 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
       // 构建请求数据
       const requestData = {
         ...values,
-        coupon_rule: values.coupon_rule || {},
+        coupon_rule: values.coupon_rule,
+        end_date: values.end_date.toISOString(),
       };
       
       // 确定请求URL和方法
@@ -805,12 +809,12 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
                         <Button
                           variant={"outline"}
                           className={cn(
-                            "pl-3 text-left font-normal",
+                            "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
                         >
                           {field.value ? (
-                            format(field.value, "yyyy-MM-dd")
+                            format(field.value, "PPP")
                           ) : (
                             <span>选择日期</span>
                           )}

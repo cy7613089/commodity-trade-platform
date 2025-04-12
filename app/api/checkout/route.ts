@@ -201,7 +201,7 @@ export async function POST(request: Request) {
         status: 'PENDING_PAYMENT', // 待付款状态
         payment_method: null, // 设为null，符合数据库约束
         payment_status: 'unpaid',
-        address_id: addressId, // 可能为null
+        address_id: null, // addressId
         shipping_fee: shippingFee,
       })
       .select('id, order_number')

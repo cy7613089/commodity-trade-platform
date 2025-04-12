@@ -9,8 +9,10 @@ export type PaymentStatus = Database['public']['Enums']['payment_status'];
 
 // 订单商品接口 (基于API返回调整)
 export type OrderItem = Omit<Database['public']['Tables']['order_items']['Row'], 'created_at'> & {
-  // 可能需要从关联的products获取额外信息，如果API select了的话
-  // products?: Pick<Database['public']['Tables']['products']['Row'], 'id' | 'name' | 'image'>;
+  // 添加前端可能需要的字段
+  product_name?: string; // 从关联查询或 order_items 表直接获取
+  product_image?: string; // 从关联查询或 order_items 表直接获取
+  specifications?: Record<string, string | number>; // 添加可选的规格字段
 };
 
 // 收货地址接口 (基于API返回调整)
@@ -26,6 +28,9 @@ export type Order = Omit<Database['public']['Tables']['orders']['Row'], 'created
   order_items: OrderItem[];
   addresses?: ShippingAddress | null; // 地址可能是关联对象
   users?: Pick<Database['public']['Tables']['users']['Row'], 'id' | 'email' | 'name'> | null; // 用户信息可能存在 (管理员视图)
+  // 添加可选的物流字段
+  tracking_number?: string;
+  shipping_method?: string;
 };
 
 // 分页信息接口

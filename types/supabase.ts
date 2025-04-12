@@ -144,28 +144,25 @@ export type Database = {
       }
       coupon_application_order: {
         Row: {
-          coupon_ids: string[]
           created_at: string | null
           id: string
           is_active: boolean | null
-          updated_at: string | null
           order_config: Json | null
+          updated_at: string | null
         }
         Insert: {
-          coupon_ids?: string[]
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          updated_at?: string | null
           order_config?: Json | null
+          updated_at?: string | null
         }
         Update: {
-          coupon_ids?: string[]
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          updated_at?: string | null
           order_config?: Json | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -213,44 +210,44 @@ export type Database = {
       coupon_stacking_rules: {
         Row: {
           coupon_ids: string[]
-          created_at: string | null
+          created_at: string
           description: string | null
           id: string
           is_active: boolean | null
           name: string | null
-          updated_at: string | null
           rule_type: string
+          updated_at: string
         }
         Insert: {
           coupon_ids: string[]
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
           name?: string | null
-          updated_at?: string | null
           rule_type: string
+          updated_at?: string
         }
         Update: {
           coupon_ids?: string[]
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
           name?: string | null
-          updated_at?: string | null
           rule_type?: string
+          updated_at?: string
         }
         Relationships: []
       }
       coupons: {
         Row: {
-          code: string
+          code: string | null
           color: string | null
           coupon_rule: Json | null
           created_at: string | null
           description: string | null
-          discount_type: string
+          discount_type: string | null
           end_date: string
           icon: string | null
           id: string
@@ -258,19 +255,18 @@ export type Database = {
           max_discount: number | null
           min_purchase: number | null
           name: string
-          start_date: string
           type: string
           updated_at: string | null
           usage_limit: number | null
-          value: number
+          value: number | null
         }
         Insert: {
-          code: string
+          code?: string | null
           color?: string | null
           coupon_rule?: Json | null
           created_at?: string | null
           description?: string | null
-          discount_type: string
+          discount_type?: string | null
           end_date: string
           icon?: string | null
           id?: string
@@ -278,19 +274,18 @@ export type Database = {
           max_discount?: number | null
           min_purchase?: number | null
           name: string
-          start_date: string
           type: string
           updated_at?: string | null
           usage_limit?: number | null
-          value: number
+          value?: number | null
         }
         Update: {
-          code?: string
+          code?: string | null
           color?: string | null
           coupon_rule?: Json | null
           created_at?: string | null
           description?: string | null
-          discount_type?: string
+          discount_type?: string | null
           end_date?: string
           icon?: string | null
           id?: string
@@ -298,11 +293,10 @@ export type Database = {
           max_discount?: number | null
           min_purchase?: number | null
           name?: string
-          start_date?: string
           type?: string
           updated_at?: string | null
           usage_limit?: number | null
-          value?: number
+          value?: number | null
         }
         Relationships: []
       }

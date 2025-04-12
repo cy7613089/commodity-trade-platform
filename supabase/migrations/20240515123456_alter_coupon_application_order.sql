@@ -28,5 +28,4 @@ DROP FUNCTION migrate_coupon_application_order();
 
 -- 完成迁移后不急于删除旧列，以防万一需要回滚
 -- 可以在确认新结构正常工作后再删除
--- ALTER TABLE IF EXISTS "public"."coupon_application_order" 
--- DROP COLUMN IF EXISTS "coupon_ids"; 
+ALTER TABLE IF EXISTS "public"."coupon_application_order" DROP COLUMN IF EXISTS "coupon_ids";

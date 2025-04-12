@@ -8,6 +8,7 @@ function createClient() {
   return createServerComponentClient<Database>({ cookies });
 }
 
+/* // 不再需要，因为管理员取消逻辑已移除
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,6 +24,7 @@ function createAdminClient() {
     }
   );
 }
+*/
 
 async function getUserRole(userId: string): Promise<string | null> {
     const supabase = createClient();
@@ -40,7 +42,8 @@ async function getUserRole(userId: string): Promise<string | null> {
 
 // --- API Route Handlers ---
 
-// 定义订单状态常量
+// 定义订单状态常量 (不再需要，因为状态转换逻辑已移除)
+/*
 const ORDER_STATUS = {
   PENDING_PAYMENT: 'PENDING_PAYMENT',
   PENDING_SHIPMENT: 'PENDING_SHIPMENT',
@@ -48,8 +51,7 @@ const ORDER_STATUS = {
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED'
 } as const;
-
-type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
+*/
 
 /**
  * GET /api/orders/[id] - 获取单个订单详情
@@ -148,15 +150,17 @@ export async function PUT(
     try {
       body = await request.json();
     } catch (_error) {
+      console.error('Error parsing request body for PUT /api/orders/[id]:', _error);
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
     
-    const { status, payment_status, payment_method } = body;
+    // 重新解析 status, payment_status, payment_method
+    const { status, payment_status, payment_method, discount_amount, final_amount } = body;
 
-    // 获取当前订单信息，检查所有权
+    // 获取当前订单信息，检查所有权 (需要 status 用于状态转换检查)
     const { data: currentOrder, error: fetchError } = await supabase
       .from('orders')
-      .select('user_id, status')
+      .select('user_id, status') // 重新 select status
       .eq('id', orderId)
       .single();
     
@@ -172,43 +176,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden: You can only update your own orders' }, { status: 403 });
     }
     
-    // 非管理员的操作限制
-    if (!isAdmin) {
-      // 检查操作权限
-      if (status) {
-        // 允许的操作:
-        // 1. 从PENDING_PAYMENT → PENDING_SHIPMENT（支付）或CANCELLED（取消订单）
-        // 2. 从SHIPPED → COMPLETED（确认收货）
-        const allowedTransitions = {
-          [ORDER_STATUS.PENDING_PAYMENT]: [ORDER_STATUS.PENDING_SHIPMENT, ORDER_STATUS.CANCELLED],
-          [ORDER_STATUS.SHIPPED]: [ORDER_STATUS.COMPLETED]
-        };
-        
-        const currentStatus = currentOrder.status as keyof typeof allowedTransitions;
-        
-        // 检查当前状态是否允许操作
-        if (!allowedTransitions[currentStatus]) {
-          return NextResponse.json({ 
-            error: `You cannot update orders with ${currentStatus} status` 
-          }, { status: 403 });
-        }
-        
-        // 检查目标状态是否允许
-        const allowedStatusChanges = allowedTransitions[currentStatus];
-        if (!allowedStatusChanges.includes(status as any)) {
-          return NextResponse.json({ 
-            error: `Cannot change order from ${currentStatus} to ${status}` 
-          }, { status: 403 });
-        }
-      }
-    }
-
+    // 重新定义允许的状态
     const allowedOrderStatuses = ['PENDING_PAYMENT', 'PENDING_SHIPMENT', 'SHIPPED', 'COMPLETED', 'CANCELLED'];
     const allowedPaymentStatuses = ['unpaid', 'paid', 'refunded'];
 
     const updateData: Partial<Database['public']['Tables']['orders']['Update']> = {};
     let updateTimestamp = false;
 
+    // 恢复对 status 的处理
     if (status) {
       if (!allowedOrderStatuses.includes(status)) {
         return NextResponse.json({ error: `Invalid order status: ${status}` }, { status: 400 });
@@ -219,6 +194,7 @@ export async function PUT(
       updateTimestamp = true;
     }
 
+    // 恢复对 payment_status 的处理
     if (payment_status) {
       if (!allowedPaymentStatuses.includes(payment_status)) {
         return NextResponse.json({ error: `Invalid payment status: ${payment_status}` }, { status: 400 });
@@ -228,8 +204,26 @@ export async function PUT(
       updateTimestamp = true;
     }
 
+    // 恢复对 payment_method 的处理
     if (payment_method) {
       updateData.payment_method = payment_method;
+      updateTimestamp = true;
+    }
+
+    // 保留对 discount_amount 和 final_amount 的处理
+    if (discount_amount !== undefined) {
+      if (typeof discount_amount !== 'number') {
+        return NextResponse.json({ error: 'Invalid type for discount_amount, expected number' }, { status: 400 });
+      }
+      updateData.discount_amount = discount_amount;
+      updateTimestamp = true;
+    }
+
+    if (final_amount !== undefined) {
+      if (typeof final_amount !== 'number') {
+        return NextResponse.json({ error: 'Invalid type for final_amount, expected number' }, { status: 400 });
+      }
+      updateData.final_amount = final_amount;
       updateTimestamp = true;
     }
 
@@ -239,57 +233,6 @@ export async function PUT(
 
     if (updateTimestamp) {
       updateData.updated_at = new Date().toISOString();
-    }
-
-    // 特殊处理: 如果是管理员，需要处理取消订单时的库存恢复等
-    if (isAdmin && status === 'CANCELLED') {
-      const adminSupabase = createAdminClient();
-      
-      // 1. 获取订单项
-      const { data: itemsToRestock, error: itemsError } = await adminSupabase
-        .from('order_items')
-        .select('product_id, quantity')
-        .eq('order_id', orderId);
-
-      if (itemsError) {
-        console.error(`Failed to get items for restocking on order ${orderId}:`, itemsError);
-        // 继续尝试取消订单，但记录错误
-      } else if (itemsToRestock) {
-        // 2. 尝试增加库存
-        try {
-          for (const item of itemsToRestock) {
-            if (item.product_id && item.quantity > 0) {
-              const { error: restockError } = await adminSupabase.rpc(
-                'adjust_product_stock' as any, 
-                {
-                  product_uuid: item.product_id,
-                  quantity_change: item.quantity // 正数表示增加
-                }
-              );
-              if (restockError) {
-                console.error(`Failed to restock product ${item.product_id} for order ${orderId}:`, restockError);
-                // 记录错误，但继续取消订单
-              }
-            }
-          }
-        } catch(restockErr) {
-          console.error(`Error during restocking process for order ${orderId}:`, restockErr);
-        }
-      }
-      
-      // 3. 如果支付状态是 'paid'，则应触发退款流程，并将payment_status设为'refunded'
-      if (updateData.payment_status !== 'refunded') {
-        const { data: paymentData } = await adminSupabase
-          .from('orders')
-          .select('payment_status')
-          .eq('id', orderId)
-          .single();
-        
-        if (paymentData?.payment_status === 'paid') {
-          updateData.payment_status = 'refunded';
-          // 这里应该有实际的退款逻辑
-        }
-      }
     }
 
     // 执行更新
