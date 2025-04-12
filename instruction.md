@@ -147,7 +147,6 @@
 #### 2.1.5 优惠券管理API
 - `/api/coupons`：获取优惠券列表，支持分页、排序和筛选（优惠券类型、状态等）
 - `/api/coupons/[id]`：获取、更新或删除单个优惠券详细信息
-- `/api/coupons/validate`：验证优惠券代码是否有效（检查代码存在性、有效期、激活状态等）
 - `/api/coupons/search`：根据优惠券代码、名称或描述搜索优惠券
 - `/api/coupon-rules`：获取或创建优惠券规则
 - `/api/coupon-rules/[id]`：获取、更新或删除单个优惠券规则
@@ -921,7 +920,41 @@ Server Actions:
 │   │       ├── [id]
 │   │       │   └── page.tsx # 商品详情页
 │   │       └── page.tsx     # 商品列表页
+│   ├── admin                 # 管理后台路由
+│   │   ├── coupons           # 优惠券管理
+│   │   │   ├── page.tsx     # 优惠券列表与管理主页
+│   │   │   └── settings     # 优惠券设置页 (全局, 叠加, 顺序)
+│   │   │       └── page.tsx
+│   │   ├── orders           # 管理后台订单管理
+│   │   │   └── page.tsx
+│   │   └── products         # 管理后台商品管理
+│   │       └── page.tsx
 │   ├── api                   # API路由
+│   │   ├── admin             # 管理员相关API
+│   │   │   ├── coupons       # 管理员优惠券API
+│   │   │   │   ├── application-order # 优惠券应用顺序API
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── batch        # 批量操作优惠券API
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── route.ts     # 优惠券列表/创建/更新API
+│   │   │   │   ├── settings     # 全局设置API
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── stacking-rules # 叠加规则API
+│   │   │   │       ├── [id]       # 单个叠加规则API
+│   │   │   │       │   └── route.ts
+│   │   │   │       ├── check      # 叠加规则检查API
+│   │   │   │       │   └── route.ts
+│   │   │   │       └── route.ts     # 叠加规则列表/创建API
+│   │   │   ├── orders         # 管理员订单API
+│   │   │   │   ├── [id]       # 单个订单API
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts     # 订单列表API
+│   │   │   ├── products       # 管理员商品API
+│   │   │   │   ├── [id]       # 单个商品API
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts     # 商品列表/创建API
+│   │   │   └── user-coupons   # 管理员用户优惠券API
+│   │   │       └── route.ts
 │   │   ├── auth             # 认证相关API
 │   │   │   ├── login
 │   │   │   │   └── route.ts # 登录API
@@ -929,17 +962,70 @@ Server Actions:
 │   │   │   │   └── route.ts # 登出API
 │   │   │   └── register
 │   │   │       └── route.ts # 注册API
-│   │   ├── ping-supabase
-│   │   │   └── route.ts     # Supabase连接测试API
-│   │   ├── supabase-timing-test
-│   │   │   └── route.ts     # Supabase性能测试API
-│   │   └── user             # 用户相关API
-│   │       ├── addresses
-│   │       │   ├── [id]
-│   │       │   │   └── route.ts # 单个地址API
-│   │       │   └── route.ts     # 地址列表/创建API
-│   │       └── profile
-│   │           └── route.ts     # 用户资料API
+│   │   ├── cart             # 购物车相关API
+│   │   │   ├── items        # 购物车项API
+│   │   │   │   ├── [id]     # 单个购物车项API
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── route.ts   # 添加购物车项API
+│   │   │   │   └── select   # 批量选择购物车项API
+│   │   │   │       └── route.ts
+│   │   │   └── route.ts       # 获取/清空购物车API
+│   │   ├── coupon-rules     # 优惠券规则API (一个优惠券关联多条规则时使用此逻辑)
+│   │   │   ├── [id]
+│   │   │   │   └── route.ts
+│   │   │   ├── coupon
+│   │   │   │   └── [couponId]
+│   │   │   │       └── route.ts
+│   │   │   └── route.ts
+│   │   ├── coupons          # 用户优惠券相关API
+│   │   │   ├── [id]         # 单个优惠券详情API (用户侧)
+│   │   │   │   └── route.ts
+│   │   │   ├── route.ts     # 获取所有可用优惠券API (用户侧)
+│   │   │   ├── search       # 搜索优惠券API (用户侧)
+│   │   │   │   └── route.ts
+│   │   │   ├── stacking-check # 用户端叠加检查API
+│   │   │   │   └── route.ts
+│   │   │   ├── stacking-rules # 获取叠加规则API (用户侧)
+│   │   │   │   └── route.ts
+│   │   ├── orders           # 用户订单相关API
+│   │   │   ├── [id]         # 单个订单API (获取/更新状态)
+│   │   │   │   └── route.ts
+│   │   │   ├── route.ts     # 创建订单/获取列表API
+│   │   │   └── user         # 获取特定用户订单API (暂未使用此逻辑)
+│   │   │       └── [userId]
+│   │   │           └── route.ts
+│   │   ├── payment          # 支付相关API (mock)
+│   │   │   ├── callback     # 支付回调API (mock)
+│   │   │   │   └── route.ts
+│   │   │   └── process      # 处理支付请求API (mock)
+│   │   │       └── route.ts
+│   │   ├── ping-supabase    # Supabase连接测试API
+│   │   │   └── route.ts
+│   │   ├── products         # 用户商品相关API
+│   │   │   ├── [id]         # 单个商品详情API
+│   │   │   │   └── route.ts
+│   │   │   ├── route.ts     # 商品列表API
+│   │   │   └── search       # 商品搜索API
+│   │   │       └── route.ts
+│   │   ├── supabase-timing-test # Supabase性能测试API
+│   │   │   └── route.ts
+│   │   ├── user             # 用户资料和地址API
+│   │   │   ├── addresses    # 用户地址API
+│   │   │   │   ├── [id]     # 单个地址API
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts   # 地址列表/创建API
+│   │   │   └── profile      # 用户资料API
+│   │   │       └── route.ts
+│   │   └── user-coupons     # 用户持有优惠券相关API
+│   │       ├── [id]         # 单个用户优惠券API
+│   │       │   └── route.ts
+│   │       ├── applicable   # 获取可用优惠券API
+│   │       │   └── route.ts
+│   │       ├── assign       # 分配优惠券API (可能仅限特殊场景)
+│   │       │   └── route.ts
+│   │       ├── calculate    # 计算优惠金额API
+│   │       │   └── route.ts
+│   │       └── route.ts     # 获取用户持有优惠券列表API
 │   ├── auth                # Supabase认证回调
 │   │   └── callback
 │   │       └── route.ts
@@ -950,11 +1036,21 @@ Server Actions:
 │   └── profile               # 用户个人资料页(可能与(shop)/account冲突或重复)
 │       └── page.tsx
 ├── components                # 组件目录
-│   ├── cart                 # 购物车相关组件 (新增目录)
-│   │   └── coupon-selector.tsx # 优惠券选择器 (已移动)
+│   ├── admin                 # 管理后台相关组件
+│   │   ├── coupon            # 管理后台优惠券组件
+│   │   │   ├── coupon-application-order.tsx # 应用顺序配置组件
+│   │   │   ├── coupon-columns.tsx           # 优惠券列表列定义
+│   │   │   ├── coupon-form-dialog.tsx       # 优惠券表单对话框
+│   │   │   ├── coupon-global-settings.tsx   # 全局设置配置组件
+│   │   │   ├── coupon-list.tsx              # 优惠券列表组件
+│   │   │   └── stacking-rule-form-dialog.tsx # 叠加规则表单对话框
+│   │   └── page-header.tsx     # 管理后台页面头部组件
+│   ├── cart                 # 购物车相关组件
+│   │   └── coupon-selector.tsx # 优惠券选择器
 │   ├── checkout             # 结算相关组件
 │   │   ├── address-selector.tsx # 地址选择器
 │   │   └── payment-method.tsx # 支付方式选择器
+│   ├── icons.tsx              # 自定义图标组件
 │   ├── layout               # 布局组件
 │   │   └── navbar.tsx       # 导航栏
 │   ├── products             # 商品相关组件
@@ -971,6 +1067,7 @@ Server Actions:
 │   │   ├── theme-mode-toggle.tsx # 主题模式切换
 │   │   └── theme-provider.tsx # 主题提供者
 │   └── ui                    # UI基础组件 (shadcn/ui)
+│       ├── alert-dialog.tsx
 │       ├── alert.tsx
 │       ├── aspect-ratio.tsx
 │       ├── avatar.tsx
@@ -980,9 +1077,12 @@ Server Actions:
 │       ├── card.tsx
 │       ├── carousel.tsx
 │       ├── checkbox.tsx
+│       ├── data-table.tsx    # 数据表格组件
 │       ├── dialog.tsx
 │       ├── dropdown-menu.tsx
 │       ├── form.tsx
+│       ├── heading.tsx       # 标题组件
+│       ├── headless-multi-select.tsx # 无头多选组件
 │       ├── input.tsx
 │       ├── label.tsx
 │       ├── navigation-menu.tsx
@@ -993,9 +1093,10 @@ Server Actions:
 │       ├── select.tsx
 │       ├── separator.tsx
 │       ├── sheet.tsx
+│       ├── site-header.tsx   # 网站头部组件
 │       ├── skeleton.tsx
 │       ├── slider.tsx
-│       ├── sonner.tsx
+│       ├── sonner.tsx        # Toast 通知
 │       ├── switch.tsx
 │       ├── table.tsx
 │       ├── tabs.tsx
@@ -1005,17 +1106,26 @@ Server Actions:
 │       └── use-toast.ts
 ├── components.json           # shadcn/ui 配置文件
 ├── eslint.config.mjs         # ESLint 配置文件
+├── hooks                     # 自定义 Hooks
+│   ├── use-coupon-stacking.ts # 优惠券叠加逻辑 Hook
+│   └── use-user-coupon-stacking.ts # 用户侧优惠券叠加 Hook
 ├── instruction.md            # 项目说明与规划文档
 ├── lib                       # 工具库与核心逻辑
+│   ├── actions               # Server Actions
+│   │   └── coupon-actions.ts # 优惠券相关 Server Actions
 │   ├── auth.ts               # 认证相关工具函数
+│   ├── data                  # 静态数据或配置
+│   │   └── categories.ts     # 商品分类数据
 │   ├── db.ts                 # Supabase客户端配置
-│   ├── hooks
+│   ├── hooks                 # 工具库内的 Hooks
 │   │   └── use-debounce.ts   # 防抖 Hook
-│   ├── services
+│   ├── services              # 服务层逻辑
 │   │   └── search.ts         # 搜索服务逻辑
 │   ├── store                 # 状态管理 (Zustand)
+│   │   ├── admin-order-store.ts # 管理后台订单状态
+│   │   ├── admin-product-store.ts # 管理后台商品状态
 │   │   ├── cart-store.ts     # 购物车状态
-│   │   ├── order-store.ts    # 订单状态
+│   │   ├── order-store.ts    # 用户订单状态
 │   │   └── user-store.ts     # 用户状态
 │   ├── supabase
 │   │   └── migrations        # Supabase 数据库迁移文件

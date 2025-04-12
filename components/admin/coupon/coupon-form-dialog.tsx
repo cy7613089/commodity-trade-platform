@@ -220,6 +220,11 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     
+    // --- 调试日志：打印提交前的值 ---
+    console.log("Form Values Before Submit:", JSON.stringify(values, null, 2));
+    console.log("Specifically coupon_rule.recurring.days_of_week:", values.coupon_rule?.recurring?.days_of_week);
+    // --- 调试日志结束 ---
+    
     try {
       // 确保满减券类型时设置正确的值
       if (values.type === 'amount') {
@@ -384,7 +389,7 @@ export function CouponFormDialog({ open, onOpenChange, coupon, onSaved }: Coupon
                     <FormLabel>时间类型</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      value={field.value}
+                      value={field.value || 'fixed'}
                     >
                       <FormControl>
                         <SelectTrigger>

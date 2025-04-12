@@ -120,7 +120,6 @@ export async function PUT(
       description,
       discount_type,
       value,
-      start_date,
       end_date,
       is_active,
       usage_limit,
@@ -129,10 +128,10 @@ export async function PUT(
       type,
       color,
       icon,
-      coupon_rules
+      coupon_rule
     } = body;
     
-    // 构造更新对象，使用 Partial<TablesUpdate<'coupons'>> 类型
+    // 构造更新对象
     const updateData: Partial<Database['public']['Tables']['coupons']['Update']> = {};
     
     // 只更新提供的字段
@@ -141,7 +140,6 @@ export async function PUT(
     if (description !== undefined) updateData.description = description;
     if (discount_type !== undefined) updateData.discount_type = discount_type;
     if (value !== undefined) updateData.value = value;
-    if (start_date !== undefined) updateData.start_date = start_date;
     if (end_date !== undefined) updateData.end_date = end_date;
     if (is_active !== undefined) updateData.is_active = is_active;
     if (usage_limit !== undefined) updateData.usage_limit = usage_limit;
@@ -150,37 +148,19 @@ export async function PUT(
     if (type !== undefined) updateData.type = type;
     if (color !== undefined) updateData.color = color;
     if (icon !== undefined) updateData.icon = icon;
+    if (coupon_rule !== undefined) {
+      updateData.coupon_rule = coupon_rule;
+    }
     
-    // 更新优惠券信息 (移除未使用的 updatedCoupon 变量)
+    // 更新优惠券信息
     const { error: updateError } = await supabase
       .from('coupons')
       .update(updateData)
       .eq('id', couponId)
-      .select(); // Keep select() to check for errors, even if result isn't used directly here
+      .select();
     
     if (updateError) {
       return NextResponse.json({ error: '更新优惠券失败', details: updateError.message }, { status: 500 });
-    }
-    
-    // 如果提供了优惠券规则，更新规则
-    if (coupon_rules && Array.isArray(coupon_rules)) {
-      // 先删除现有规则
-      await supabase
-        .from('coupon_rules')
-        .delete()
-        .eq('coupon_id', couponId);
-      
-      // 添加新规则
-      for (const rule of coupon_rules) {
-        await supabase
-          .from('coupon_rules')
-          .insert({
-            coupon_id: couponId,
-            rule_type: rule.rule_type,
-            rule_value: rule.rule_value,
-            priority: rule.priority || 0
-          });
-      }
     }
     
     // 获取更新后的完整优惠券信息（包括规则）
